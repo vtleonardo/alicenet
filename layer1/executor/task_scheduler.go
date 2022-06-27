@@ -240,7 +240,6 @@ func (s *TasksScheduler) eventLoop() {
 				s.logger.WithError(err).Errorf("Failed to persist state %d on task response", s.LastHeightSeen)
 			}
 		case <-processingTime:
-			s.logger.Infof("now - %s", time.Now())
 			s.logger.Trace("processing latest height")
 			networkCtx, networkCf := context.WithTimeout(s.mainCtx, constants.TaskSchedulerNetworkTimeout)
 			height, err := s.eth.GetFinalizedHeight(networkCtx)
@@ -266,10 +265,6 @@ func (s *TasksScheduler) eventLoop() {
 			if err != nil {
 				s.logger.WithError(err).Errorf("Failed to killExpiredTasks %d", s.LastHeightSeen)
 			}
-			err = s.persistState()
-			if err != nil {
-				s.logger.WithError(err).Errorf("Failed to persist state %d", s.LastHeightSeen)
-			}
 
 			err = s.removeUnresponsiveTasks(s.mainCtx, unresponsive)
 			if err != nil {
@@ -279,7 +274,6 @@ func (s *TasksScheduler) eventLoop() {
 			if err != nil {
 				s.logger.WithError(err).Errorf("Failed to persist state %d", s.LastHeightSeen)
 			}
-			s.logger.Infof("now - %s", time.Now())
 			processingTime = time.After(constants.TaskSchedulerProcessingTime)
 		}
 	}
@@ -422,6 +416,7 @@ func (s *TasksScheduler) findTasks() ([]TaskRequestInfo, []TaskRequestInfo, []Ta
 	toStart := make([]TaskRequestInfo, 0)
 	expired := make([]TaskRequestInfo, 0)
 	unresponsive := make([]TaskRequestInfo, 0)
+	multiExecutionCheck := make(map[string]bool)
 
 	for _, taskRequest := range s.Schedule {
 		if taskRequest.End != 0 && taskRequest.End+constants.TaskSchedulerHeightToleranceBeforeRemoving <= s.LastHeightSeen {
@@ -441,9 +436,11 @@ func (s *TasksScheduler) findTasks() ([]TaskRequestInfo, []TaskRequestInfo, []Ta
 			(taskRequest.Start <= s.LastHeightSeen && taskRequest.End > s.LastHeightSeen)) && !taskRequest.isRunning {
 
 			if taskRequest.Task.GetAllowMultiExecution() {
+				multiExecutionCheck[taskRequest.Name] = true
 				toStart = append(toStart, taskRequest)
 			} else {
-				if len(s.findRunningTasksByName(taskRequest.Name)) == 0 {
+				if alreadyPicked := multiExecutionCheck[taskRequest.Name]; !alreadyPicked && len(s.findRunningTasksByName(taskRequest.Name)) == 0 {
+					multiExecutionCheck[taskRequest.Name] = true
 					toStart = append(toStart, taskRequest)
 				} else {
 					s.logger.Debugf("trying to start more than 1 task instance when this is not allowed id: %s, name: %s", taskRequest.Id, taskRequest.Name)
@@ -479,10 +476,6 @@ func (s *TasksScheduler) findRunningTasksByName(taskName string) []TaskRequestIn
 	}
 	s.logger.Tracef("found %v running tasks with name %s", len(tasks), taskName)
 	return tasks
-}
-
-func (s *TasksScheduler) length() int {
-	return len(s.Schedule)
 }
 
 func (s *TasksScheduler) remove(id string) error {
