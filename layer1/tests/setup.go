@@ -7,6 +7,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
+	"github.com/alicenet/alicenet/layer1/ethereum"
 	"io"
 	"io/ioutil"
 	"log"
@@ -26,7 +27,6 @@ import (
 	"github.com/alicenet/alicenet/logging"
 	"github.com/sirupsen/logrus"
 
-	"github.com/alicenet/alicenet/blockchain/ethereum"
 	"github.com/alicenet/alicenet/layer1/transaction"
 
 	"github.com/alicenet/alicenet/utils"

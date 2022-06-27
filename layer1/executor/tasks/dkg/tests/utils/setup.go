@@ -4,9 +4,11 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+	"os/exec"
+	"path/filepath"
+	"strconv"
 	"testing"
 
-	"github.com/alicenet/alicenet/blockchain/testutils"
 	"github.com/alicenet/alicenet/bridge/bindings"
 	"github.com/alicenet/alicenet/consensus/objs"
 	"github.com/alicenet/alicenet/constants"
@@ -57,6 +59,29 @@ func (ah *adminHandlerMock) SetSynchronized(v bool) {
 	ah.setSynchronized = true
 }
 
+func InitializeValidatorFiles(n int) error {
+
+	rootPath := GetMadnetRootPath()
+	scriptPath := append(rootPath, "scripts")
+	scriptPath = append(scriptPath, "main.sh")
+	scriptPathJoined := filepath.Join(scriptPath...)
+	fmt.Println("scriptPathJoined2: ", scriptPathJoined)
+
+	cmd := exec.Cmd{
+		Path: scriptPathJoined,
+		Args: []string{scriptPathJoined, "init", strconv.Itoa(n)},
+		Dir:  filepath.Join(rootPath...),
+	}
+
+	setCommandStdOut(&cmd)
+	err := cmd.Start()
+	if err != nil {
+		return fmt.Errorf("could not generate validator files: %s", err)
+	}
+
+	return nil
+}
+
 func InitializeNewDetDkgStateInfo(n int) ([]*state.DkgState, []*ecdsa.PrivateKey) {
 	return InitializeNewDkgStateInfo(n, true)
 }
@@ -67,8 +92,8 @@ func InitializeNewNonDetDkgStateInfo(n int) ([]*state.DkgState, []*ecdsa.Private
 
 func InitializeNewDkgStateInfo(n int, deterministicShares bool) ([]*state.DkgState, []*ecdsa.PrivateKey) {
 	// Get private keys for validators
-	privKeys := testutils.SetupPrivateKeys(n)
-	accountsArray := testutils.SetupAccounts(privKeys)
+	privKeys := SetupPrivateKeys(n)
+	accountsArray := SetupAccounts(privKeys)
 	dkgStates := []*state.DkgState{}
 	threshold := crypto.CalcThreshold(n)
 
