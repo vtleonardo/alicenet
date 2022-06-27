@@ -240,6 +240,7 @@ func (s *TasksScheduler) eventLoop() {
 				s.logger.WithError(err).Errorf("Failed to persist state %d on task response", s.LastHeightSeen)
 			}
 		case <-processingTime:
+			s.logger.Infof("now - %s", time.Now())
 			s.logger.Trace("processing latest height")
 			networkCtx, networkCf := context.WithTimeout(s.mainCtx, constants.TaskSchedulerNetworkTimeout)
 			height, err := s.eth.GetFinalizedHeight(networkCtx)
@@ -278,6 +279,7 @@ func (s *TasksScheduler) eventLoop() {
 			if err != nil {
 				s.logger.WithError(err).Errorf("Failed to persist state %d", s.LastHeightSeen)
 			}
+			s.logger.Infof("now - %s", time.Now())
 			processingTime = time.After(constants.TaskSchedulerProcessingTime)
 		}
 	}
@@ -288,9 +290,9 @@ func (s *TasksScheduler) schedule(ctx context.Context, task tasks.Task) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
-		//if task == nil {
-		//	return ErrTaskIsNil
-		//}
+		if task == nil {
+			return ErrTaskIsNil
+		}
 
 		start := task.GetStart()
 		end := task.GetEnd()

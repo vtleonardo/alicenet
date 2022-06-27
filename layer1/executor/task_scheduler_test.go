@@ -4,16 +4,12 @@ import (
 	"fmt"
 	"github.com/alicenet/alicenet/constants"
 	"github.com/alicenet/alicenet/layer1/executor/tasks"
+	"github.com/alicenet/alicenet/layer1/executor/tasks/dkg"
 	"github.com/alicenet/alicenet/layer1/transaction"
 	"github.com/alicenet/alicenet/test/mocks"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
-)
-
-var (
-	lastHeightSeen uint64 = 12
-	taskGroupName         = "test_group"
 )
 
 func getTaskScheduler(t *testing.T) (*TasksScheduler, chan tasks.TaskRequest) {
@@ -42,31 +38,107 @@ func TestTasksScheduler_Schedule_NilTask(t *testing.T) {
 		Action: tasks.Schedule,
 	}
 
+	tasksChan <- request
+
 	go func() {
 		select {
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(1 * time.Second):
 		}
-		scheduler.Close()
+		assert.Emptyf(t, scheduler.Schedule, "Expected zero tasks scheduled")
+		scheduler.cancelChan <- true
 	}()
 
-	go scheduler.eventLoop()
-	tasksChan <- request
+	scheduler.eventLoop()
 }
 
-//func TestTasksScheduler_Schedule_WrongExecutionData(t *testing.T) {
-//
-//	s := getTaskScheduler()
-//	ctx, _ := context.WithCancel(context.Background())
-//	taskInvalidParams := mocks.NewMockITask()
-//	err := s.schedule(ctx, taskInvalidParams)
-//	assert.Equal(t, ErrWrongParams, err)
-//
-//	taskExpired := mocks.NewMockITask()
-//	s.LastHeightSeen = lastHeightSeen
-//	err = s.schedule(ctx, taskExpired)
-//	assert.Equal(t, ErrTaskExpired, err)
-//}
-//
+func TestTasksScheduler_Schedule_WrongExecutionData(t *testing.T) {
+
+	scheduler, tasksChan := getTaskScheduler(t)
+	defer close(tasksChan)
+
+	task := dkg.NewCompletionTask(2, 1)
+	request := tasks.TaskRequest{
+		Task:   task,
+		Action: tasks.Schedule,
+	}
+	tasksChan <- request
+
+	scheduler.LastHeightSeen = 12
+	task = dkg.NewCompletionTask(2, 3)
+	request = tasks.TaskRequest{
+		Task:   task,
+		Action: tasks.Schedule,
+	}
+	tasksChan <- request
+
+	go func() {
+		select {
+		case <-time.After(1 * time.Second):
+		}
+		assert.Emptyf(t, scheduler.Schedule, "Expected zero tasks scheduled")
+		scheduler.cancelChan <- true
+	}()
+
+	scheduler.eventLoop()
+}
+
+func TestTasksScheduler_Schedule_TasksSuccessfully(t *testing.T) {
+
+	scheduler, tasksChan := getTaskScheduler(t)
+	defer close(tasksChan)
+
+	scheduler.Start()
+
+	taskCompletionTask := dkg.NewCompletionTask(2, 3)
+	request := tasks.TaskRequest{
+		Task:   taskCompletionTask,
+		Action: tasks.Schedule,
+	}
+	tasksChan <- request
+
+	taskCompletionTaskSecond := dkg.NewCompletionTask(3, 4)
+	request = tasks.TaskRequest{
+		Task:   taskCompletionTaskSecond,
+		Action: tasks.Schedule,
+	}
+	tasksChan <- request
+
+	taskRegister := dkg.NewRegisterTask(2, 5)
+	request = tasks.TaskRequest{
+		Task:   taskRegister,
+		Action: tasks.Schedule,
+	}
+	tasksChan <- request
+	select {
+	case <-time.After(500 * time.Millisecond):
+		assert.Equalf(t, 3, len(scheduler.Schedule), "Expected 3 task scheduled")
+	}
+
+	request = tasks.NewKillTaskRequest(&dkg.CompletionTask{})
+	tasksChan <- request
+	select {
+	case <-time.After(500 * time.Millisecond):
+		assert.Equalf(t, 1, len(scheduler.Schedule), "Expected 1 task after Completion tasks have been killed")
+	}
+
+	request = tasks.NewKillTaskRequest(&dkg.DisputeMissingGPKjTask{})
+	tasksChan <- request
+	select {
+	case <-time.After(500 * time.Millisecond):
+		assert.Equalf(t, 1, len(scheduler.Schedule), "There should be 1 tasks left still, due there were no DisputeMissing task scheduled")
+	}
+
+	request = tasks.NewKillTaskRequest(&dkg.RegisterTask{})
+	tasksChan <- request
+	select {
+	case <-time.After(500 * time.Millisecond):
+		assert.Equalf(t, 0, len(scheduler.Schedule), "All the tasks should have been removed")
+	}
+
+	assert.Emptyf(t, scheduler.Schedule, "Expected zero tasks scheduled")
+	scheduler.cancelChan <- true
+}
+
 //func TestTasksScheduler_Schedule_Success(t *testing.T) {
 //
 //	s := getTaskScheduler()
