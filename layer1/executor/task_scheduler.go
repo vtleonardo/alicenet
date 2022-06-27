@@ -30,6 +30,7 @@ var (
 	ErrNotScheduled = errors.New("scheduled task not found")
 	ErrWrongParams  = errors.New("wrong start/end height for the task")
 	ErrTaskExpired  = errors.New("the task is already expired")
+	ErrTaskIsNil    = errors.New("the task we're trying to schedule is nil")
 )
 
 type TaskRequestInfo struct {
@@ -264,6 +265,10 @@ func (s *TasksScheduler) eventLoop() {
 			if err != nil {
 				s.logger.WithError(err).Errorf("Failed to killExpiredTasks %d", s.LastHeightSeen)
 			}
+			err = s.persistState()
+			if err != nil {
+				s.logger.WithError(err).Errorf("Failed to persist state %d", s.LastHeightSeen)
+			}
 
 			err = s.removeUnresponsiveTasks(s.mainCtx, unresponsive)
 			if err != nil {
@@ -283,6 +288,10 @@ func (s *TasksScheduler) schedule(ctx context.Context, task tasks.Task) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
+		//if task == nil {
+		//	return ErrTaskIsNil
+		//}
+
 		start := task.GetStart()
 		end := task.GetEnd()
 
@@ -429,9 +438,14 @@ func (s *TasksScheduler) findTasks() ([]TaskRequestInfo, []TaskRequestInfo, []Ta
 			(taskRequest.Start != 0 && taskRequest.Start <= s.LastHeightSeen && taskRequest.End == 0) ||
 			(taskRequest.Start <= s.LastHeightSeen && taskRequest.End > s.LastHeightSeen)) && !taskRequest.isRunning {
 
-			if taskRequest.Task.GetAllowMultiExecution() ||
-				(!taskRequest.Task.GetAllowMultiExecution() && len(s.findRunningTasksByName(taskRequest.Name)) == 0) {
+			if taskRequest.Task.GetAllowMultiExecution() {
 				toStart = append(toStart, taskRequest)
+			} else {
+				if len(s.findRunningTasksByName(taskRequest.Name)) == 0 {
+					toStart = append(toStart, taskRequest)
+				} else {
+					s.logger.Debugf("trying to start more than 1 task instance when this is not allowed id: %s, name: %s", taskRequest.Id, taskRequest.Name)
+				}
 			}
 			continue
 		}
