@@ -72,7 +72,7 @@ func Test_TaskManagerHappyPath(t *testing.T) {
 	mainCtx := context.Background()
 	manager.ManageTask(mainCtx, task, "happyPath", "123", db, manager.logger, client, taskRespChan)
 
-	mockrequire.CalledOnce(t, task.Prepare)
-	mockrequire.CalledOnce(t, task.Execute)
-	mockrequire.CalledOnceWith(t, task.Finish, mockrequire.Values(nil))
+	mockrequire.CalledOnce(t, task.PrepareFunc)
+	mockrequire.CalledOnce(t, task.ExecuteFunc)
+	mockrequire.CalledOnceWith(t, task.FinishFunc, mockrequire.Values(nil))
 }
