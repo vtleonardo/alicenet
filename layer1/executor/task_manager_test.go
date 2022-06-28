@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"
+	"time"
 )
 
 func getTaskManager(t *testing.T) (*TasksManager, *mocks.MockClient, *db.Database, *taskResponseChan, *mocks.MockWatcher) {
@@ -39,7 +40,7 @@ func getTaskManager(t *testing.T) (*TasksManager, *mocks.MockClient, *db.Databas
 	return taskManager, client, db, taskRespChan, txWatcher
 }
 
-func Test_TaskManagerHappyPath(t *testing.T) {
+func Test_TaskManager_HappyPath(t *testing.T) {
 	manager, client, db, taskRespChan, txWatcher := getTaskManager(t)
 	defer taskRespChan.close()
 
@@ -75,4 +76,74 @@ func Test_TaskManagerHappyPath(t *testing.T) {
 	mockrequire.CalledOnce(t, task.PrepareFunc)
 	mockrequire.CalledOnce(t, task.ExecuteFunc)
 	mockrequire.CalledOnceWith(t, task.FinishFunc, mockrequire.Values(nil))
+	assert.Emptyf(t, manager.Transactions, "Expected transactions to be empty")
+}
+
+func Test_TaskManager_TaskErrorRecoverable_ContextTimeout(t *testing.T) {
+	manager, client, db, taskRespChan, txWatcher := getTaskManager(t)
+	defer taskRespChan.close()
+
+	receipt := &types.Receipt{
+		Status:      types.ReceiptStatusSuccessful,
+		BlockNumber: big.NewInt(20),
+	}
+
+	receiptResponse := mocks.NewMockReceiptResponse()
+	receiptResponse.IsReadyFunc.SetDefaultReturn(true)
+	receiptResponse.GetReceiptBlockingFunc.SetDefaultReturn(receipt, nil)
+
+	txWatcher.SubscribeFunc.SetDefaultReturn(receiptResponse, nil)
+
+	client.GetTransactionReceiptFunc.SetDefaultReturn(receipt, nil)
+
+	taskErr := tasks.NewTaskErr("Recoverable error", true)
+	task := mocks.NewMockTask()
+	task.PrepareFunc.SetDefaultReturn(taskErr)
+
+	mainCtx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+	manager.ManageTask(mainCtx, task, "context timeout", "123", db, manager.logger, client, taskRespChan)
+
+	mockrequire.CalledOnce(t, task.PrepareFunc)
+	mockrequire.NotCalled(t, task.ExecuteFunc)
+	mockrequire.CalledOnce(t, task.FinishFunc)
+	assert.Emptyf(t, manager.Transactions, "Expected transactions to be empty")
+}
+
+func Test_TaskManager_TaskInTasksManagerTransactions(t *testing.T) {
+	manager, client, db, taskRespChan, txWatcher := getTaskManager(t)
+	defer taskRespChan.close()
+
+	receipt := &types.Receipt{
+		Status:      types.ReceiptStatusSuccessful,
+		BlockNumber: big.NewInt(20),
+	}
+
+	receiptResponse := mocks.NewMockReceiptResponse()
+	receiptResponse.IsReadyFunc.SetDefaultReturn(true)
+	receiptResponse.GetReceiptBlockingFunc.SetDefaultReturn(receipt, nil)
+
+	txWatcher.SubscribeFunc.SetDefaultReturn(receiptResponse, nil)
+
+	client.GetTransactionReceiptFunc.SetDefaultReturn(receipt, nil)
+
+	task := mocks.NewMockTask()
+	task.PrepareFunc.SetDefaultReturn(nil)
+	txn := types.NewTx(&types.LegacyTx{
+		Nonce:    1,
+		Value:    big.NewInt(1),
+		Gas:      1,
+		GasPrice: big.NewInt(1),
+		Data:     []byte{52, 66, 175, 92},
+	})
+	task.ExecuteFunc.SetDefaultReturn(txn, nil)
+	task.ShouldExecuteFunc.SetDefaultReturn(true, nil)
+	task.GetLoggerFunc.SetDefaultReturn(manager.logger)
+
+	mainCtx := context.Background()
+	manager.Transactions[task.GetId()] = txn
+	manager.ManageTask(mainCtx, task, "taskLoaded", "123", db, manager.logger, client, taskRespChan)
+
+	mockrequire.CalledOnce(t, task.PrepareFunc)
+	mockrequire.CalledOnce(t, task.ExecuteFunc)
+	assert.Emptyf(t, manager.Transactions, "Expected transactions to be empty")
 }
