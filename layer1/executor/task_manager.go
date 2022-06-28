@@ -206,10 +206,9 @@ func (tm *TasksManager) checkCompletion(ctx context.Context, task tasks.Task, tx
 				logger.Warn("got a reverted receipt, retrying")
 				return false, nil
 			}
-		} else {
-			logger.Trace("receipt is not ready yet")
 		}
 
+		logger.Trace("receipt is not ready yet")
 		hasToExecute, err := shouldExecute(ctx, task)
 		if err != nil {
 			return false, err
