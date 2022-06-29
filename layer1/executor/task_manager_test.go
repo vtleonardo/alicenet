@@ -5,14 +5,18 @@ import (
 	"errors"
 	"github.com/alicenet/alicenet/consensus/db"
 	"github.com/alicenet/alicenet/layer1/executor/tasks"
+	"github.com/alicenet/alicenet/layer1/transaction"
 	"github.com/alicenet/alicenet/logging"
 	"github.com/alicenet/alicenet/test/mocks"
 	mockrequire "github.com/derision-test/go-mockgen/testutil/require"
+	"github.com/dgraph-io/badger/v2"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/assert"
+	"io/ioutil"
 	"math/big"
+	"os"
 	"testing"
 )
 
@@ -276,4 +280,87 @@ func Test_TaskManager_ReceiptWithErrorAndFailure(t *testing.T) {
 
 	mockrequire.CalledOnceWith(t, task.FinishFunc, mockrequire.Values(nil))
 	assert.Emptyf(t, manager.Transactions, "Expected transactions to be empty")
+}
+
+func Test_TaskManager_RecoveringTaskManager(t *testing.T) {
+	dir, err := ioutil.TempDir("", "db-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	opts := badger.DefaultOptions(dir)
+	rawDB, err := badger.Open(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rawDB.Close()
+
+	db := &db.Database{}
+	db.Init(rawDB)
+
+	client := mocks.NewMockClient()
+	client.ExtractTransactionSenderFunc.SetDefaultReturn(common.Address{}, nil)
+	client.GetTxMaxStaleBlocksFunc.SetDefaultReturn(10)
+	hdr := &types.Header{
+		Number: big.NewInt(1),
+	}
+	client.GetHeaderByNumberFunc.SetDefaultReturn(hdr, nil)
+	client.GetBlockBaseFeeAndSuggestedGasTipFunc.SetDefaultReturn(big.NewInt(100), big.NewInt(1), nil)
+	client.GetDefaultAccountFunc.SetDefaultReturn(accounts.Account{Address: common.Address{}})
+	client.GetTransactionByHashFunc.SetDefaultReturn(nil, false, nil)
+	client.GetFinalityDelayFunc.SetDefaultReturn(10)
+
+	logger := logging.GetLogger("test")
+
+	txWatcher := mocks.NewMockWatcher()
+	manager, err := NewTaskManager(txWatcher, db, logger.WithField("Component", "schedule"))
+	assert.Nil(t, err)
+
+	taskRespChan := &taskResponseChan{trChan: make(chan tasks.TaskResponse, 100)}
+	defer taskRespChan.close()
+
+	receipt := &types.Receipt{
+		Status:      types.ReceiptStatusSuccessful,
+		BlockNumber: big.NewInt(20),
+	}
+
+	receiptResponse := mocks.NewMockReceiptResponse()
+	receiptResponse.IsReadyFunc.SetDefaultReturn(true)
+	receiptResponse.GetReceiptBlockingFunc.PushReturn(nil, &transaction.ErrTransactionStale{})
+	receiptResponse.GetReceiptBlockingFunc.PushReturn(receipt, nil)
+
+	txWatcher.SubscribeFunc.SetDefaultReturn(receiptResponse, nil)
+
+	client.GetTransactionReceiptFunc.SetDefaultReturn(receipt, nil)
+
+	task := mocks.NewMockTask()
+	task.PrepareFunc.SetDefaultReturn(nil)
+	txn := types.NewTx(&types.LegacyTx{
+		Nonce:    1,
+		Value:    big.NewInt(1),
+		Gas:      1,
+		GasPrice: big.NewInt(1),
+		Data:     []byte{52, 66, 175, 92},
+	})
+	task.ExecuteFunc.SetDefaultReturn(txn, nil)
+	task.ShouldExecuteFunc.SetDefaultReturn(true, nil)
+	task.GetLoggerFunc.SetDefaultReturn(manager.logger)
+
+	mainCtx := context.Background()
+	manager.ManageTask(mainCtx, task, "", "123", db, manager.logger, client, taskRespChan)
+
+	assert.Equalf(t, 1, len(manager.Transactions), "Expected one transaction (stale status)")
+	manager, err = NewTaskManager(txWatcher, db, logger.WithField("Component", "schedule"))
+	assert.Nil(t, err)
+	manager.ManageTask(mainCtx, task, "", "123", db, manager.logger, client, taskRespChan)
+
+	mockrequire.CalledOnce(t, task.PrepareFunc)
+	mockrequire.CalledOnce(t, task.ExecuteFunc)
+	mockrequire.CalledOnceWith(t, task.FinishFunc, mockrequire.Values(nil))
+	assert.Emptyf(t, manager.Transactions, "Expected transactions to be empty")
+
 }
