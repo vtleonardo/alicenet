@@ -68,7 +68,7 @@ type taskRequestInner struct {
 	WrappedTask *marshaller.InstanceWrapper `json:"wrappedTask"`
 }
 
-type TasksScheduler struct {
+type TasksSchedulerBackend struct {
 	Schedule         map[string]TaskRequestInfo     `json:"schedule"`
 	LastHeightSeen   uint64                         `json:"lastHeightSeen"`
 	mainCtx          context.Context                `json:"-"`
@@ -133,7 +133,7 @@ func GetTaskLoggerComplete(taskReq TaskRequestInfo) *logrus.Entry {
 	return logEntry
 }
 
-func (s *TasksScheduler) Start() error {
+func (s *TasksSchedulerBackend) Start() error {
 	err := s.loadState()
 	if err != nil {
 		s.logger.Warnf("could not find previous State: %v", err)
@@ -153,12 +153,12 @@ func (s *TasksScheduler) Start() error {
 	return nil
 }
 
-func (s *TasksScheduler) Close() {
+func (s *TasksSchedulerBackend) Close() {
 	s.logger.Warn("Closing scheduler")
 	s.cancelChan <- true
 }
 
-func (s *TasksScheduler) eventLoop() {
+func (s *TasksSchedulerBackend) eventLoop() {
 	processingTime := time.After(constants.TaskSchedulerProcessingTime)
 
 	for {
@@ -255,7 +255,7 @@ func (s *TasksScheduler) eventLoop() {
 	}
 }
 
-func (s *TasksScheduler) schedule(ctx context.Context, task tasks.Task, id string) error {
+func (s *TasksSchedulerBackend) schedule(ctx context.Context, task tasks.Task, id string) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -291,7 +291,7 @@ func (s *TasksScheduler) schedule(ctx context.Context, task tasks.Task, id strin
 	return nil
 }
 
-func (s *TasksScheduler) processTaskResponse(ctx context.Context, taskResponse tasks.Response) error {
+func (s *TasksSchedulerBackend) processTaskResponse(ctx context.Context, taskResponse tasks.Response) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -318,7 +318,7 @@ func (s *TasksScheduler) processTaskResponse(ctx context.Context, taskResponse t
 	return nil
 }
 
-func (s *TasksScheduler) startTasks(ctx context.Context, tasks []TaskRequestInfo) error {
+func (s *TasksSchedulerBackend) startTasks(ctx context.Context, tasks []TaskRequestInfo) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -341,7 +341,7 @@ func (s *TasksScheduler) startTasks(ctx context.Context, tasks []TaskRequestInfo
 	return nil
 }
 
-func (s *TasksScheduler) killTaskByName(ctx context.Context, taskName string) error {
+func (s *TasksSchedulerBackend) killTaskByName(ctx context.Context, taskName string) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -351,7 +351,7 @@ func (s *TasksScheduler) killTaskByName(ctx context.Context, taskName string) er
 	}
 }
 
-func (s *TasksScheduler) killTasks(ctx context.Context, tasks []TaskRequestInfo) error {
+func (s *TasksSchedulerBackend) killTasks(ctx context.Context, tasks []TaskRequestInfo) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -378,7 +378,7 @@ func (s *TasksScheduler) killTasks(ctx context.Context, tasks []TaskRequestInfo)
 	return nil
 }
 
-func (s *TasksScheduler) findTasks() ([]TaskRequestInfo, []TaskRequestInfo) {
+func (s *TasksSchedulerBackend) findTasks() ([]TaskRequestInfo, []TaskRequestInfo) {
 	toStart := make([]TaskRequestInfo, 0)
 	expired := make([]TaskRequestInfo, 0)
 	unresponsive := make([]TaskRequestInfo, 0)
@@ -404,14 +404,13 @@ func (s *TasksScheduler) findTasks() ([]TaskRequestInfo, []TaskRequestInfo) {
 			continue
 		}
 	}
-	// todo: ask Hunter
 	if len(unresponsive) > 0 {
 		panic("found unresponsive tasks")
 	}
 	return toStart, expired
 }
 
-func (s *TasksScheduler) findTasksByName(taskName string) []TaskRequestInfo {
+func (s *TasksSchedulerBackend) findTasksByName(taskName string) []TaskRequestInfo {
 	s.logger.Tracef("trying to find tasks by name %s", taskName)
 	tasks := make([]TaskRequestInfo, 0)
 
@@ -424,7 +423,7 @@ func (s *TasksScheduler) findTasksByName(taskName string) []TaskRequestInfo {
 	return tasks
 }
 
-func (s *TasksScheduler) findRunningTasksByName(taskName string) []TaskRequestInfo {
+func (s *TasksSchedulerBackend) findRunningTasksByName(taskName string) []TaskRequestInfo {
 	s.logger.Tracef("finding running tasks by name %s", taskName)
 	tasks := make([]TaskRequestInfo, 0)
 
@@ -437,7 +436,7 @@ func (s *TasksScheduler) findRunningTasksByName(taskName string) []TaskRequestIn
 	return tasks
 }
 
-func (s *TasksScheduler) remove(id string) error {
+func (s *TasksSchedulerBackend) remove(id string) error {
 	s.logger.Tracef("trying to remove task with id %s", id)
 	_, present := s.Schedule[id]
 	if !present {
@@ -449,7 +448,7 @@ func (s *TasksScheduler) remove(id string) error {
 	return nil
 }
 
-func (s *TasksScheduler) persistState() error {
+func (s *TasksSchedulerBackend) persistState() error {
 	logger := logging.GetLogger("staterecover").WithField("State", "taskScheduler")
 	rawData, err := json.Marshal(s)
 	if err != nil {
@@ -477,7 +476,7 @@ func (s *TasksScheduler) persistState() error {
 	return nil
 }
 
-func (s *TasksScheduler) loadState() error {
+func (s *TasksSchedulerBackend) loadState() error {
 	logger := logging.GetLogger("staterecover").WithField("State", "taskScheduler")
 	if err := s.database.View(func(txn *badger.Txn) error {
 		key := dbprefix.PrefixTaskSchedulerState()
@@ -518,7 +517,7 @@ func (s *TasksScheduler) loadState() error {
 
 }
 
-func (s *TasksScheduler) MarshalJSON() ([]byte, error) {
+func (s *TasksSchedulerBackend) MarshalJSON() ([]byte, error) {
 
 	ws := &innerSequentialSchedule{Schedule: make(map[string]*taskRequestInner)}
 
@@ -538,7 +537,7 @@ func (s *TasksScheduler) MarshalJSON() ([]byte, error) {
 	return raw, nil
 }
 
-func (s *TasksScheduler) UnmarshalJSON(raw []byte) error {
+func (s *TasksSchedulerBackend) UnmarshalJSON(raw []byte) error {
 	aa := &innerSequentialSchedule{}
 
 	err := json.Unmarshal(raw, aa)

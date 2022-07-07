@@ -55,7 +55,7 @@ type internalRequest struct {
 var _ TaskSender = &Sender{}
 
 type Sender struct {
-	taskScheduler  *TasksScheduler
+	taskScheduler  *TasksSchedulerBackend
 	requestChannel chan internalRequest
 }
 
@@ -68,7 +68,7 @@ func NewTasksScheduler(database *db.Database, eth layer1.Client, adminHandler mo
 	taskRequestChan := make(chan internalRequest, constants.TaskSchedulerBufferSize)
 	defer close(taskRequestChan)
 
-	s := &TasksScheduler{
+	s := &TasksSchedulerBackend{
 		Schedule:         make(map[string]TaskRequestInfo),
 		mainCtx:          mainCtx,
 		mainCtxCf:        cf,

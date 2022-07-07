@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func getTaskScheduler(t *testing.T) (*TasksScheduler, chan tasks.Request, *mocks.MockClient) {
+func getTaskScheduler(t *testing.T) (*TasksSchedulerBackend, chan tasks.Request, *mocks.MockClient) {
 	db := mocks.NewTestDB()
 	client := mocks.NewMockClient()
 	adminHandlers := mocks.NewMockAdminHandler()
