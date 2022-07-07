@@ -3,14 +3,18 @@
 package mocks
 
 import (
+	v2 "github.com/dgraph-io/badger/v2"
+	"math/big"
 	"sync"
 
+	appObjs "github.com/alicenet/alicenet/application/objs"
 	objs "github.com/alicenet/alicenet/consensus/objs"
 	constants "github.com/alicenet/alicenet/constants"
 	interfaces "github.com/alicenet/alicenet/layer1/monitor/interfaces"
 )
 
 var _ interfaces.AdminHandler = &MockAdminHandler{}
+
 // MockAdminHandler is a mock implementation of the AdminHandler interface
 // (from the package github.com/alicenet/alicenet/layer1/monitor/interfaces)
 // used for unit testing.
@@ -748,4 +752,163 @@ func (c AdminHandlerSetSynchronizedFuncCall) Args() []interface{} {
 // invocation.
 func (c AdminHandlerSetSynchronizedFuncCall) Results() []interface{} {
 	return []interface{}{}
+}
+
+// MockDepositHandler is a mock implementation of the DepositHandler
+// interface (from the package
+// github.com/alicenet/alicenet/layer1/monitor/interfaces) used for unit
+// testing.
+type MockDepositHandler struct {
+	// AddFunc is an instance of a mock function object controlling the
+	// behavior of the method Add.
+	AddFunc *DepositHandlerAddFunc
+}
+
+// NewMockDepositHandler creates a new mock of the DepositHandler interface.
+// All methods return zero values for all results, unless overwritten.
+func NewMockDepositHandler() *MockDepositHandler {
+	return &MockDepositHandler{
+		AddFunc: &DepositHandlerAddFunc{
+			defaultHook: func(*v2.Txn, uint32, []byte, *big.Int, *appObjs.Owner) (r0 error) {
+				return
+			},
+		},
+	}
+}
+
+// NewStrictMockDepositHandler creates a new mock of the DepositHandler
+// interface. All methods panic on invocation, unless overwritten.
+func NewStrictMockDepositHandler() *MockDepositHandler {
+	return &MockDepositHandler{
+		AddFunc: &DepositHandlerAddFunc{
+			defaultHook: func(*v2.Txn, uint32, []byte, *big.Int, *appObjs.Owner) error {
+				panic("unexpected invocation of MockDepositHandler.Add")
+			},
+		},
+	}
+}
+
+// NewMockDepositHandlerFrom creates a new mock of the MockDepositHandler
+// interface. All methods delegate to the given implementation, unless
+// overwritten.
+func NewMockDepositHandlerFrom(i interfaces.DepositHandler) *MockDepositHandler {
+	return &MockDepositHandler{
+		AddFunc: &DepositHandlerAddFunc{
+			defaultHook: i.Add,
+		},
+	}
+}
+
+// DepositHandlerAddFunc describes the behavior when the Add method of the
+// parent MockDepositHandler instance is invoked.
+type DepositHandlerAddFunc struct {
+	defaultHook func(*v2.Txn, uint32, []byte, *big.Int, *appObjs.Owner) error
+	hooks       []func(*v2.Txn, uint32, []byte, *big.Int, *appObjs.Owner) error
+	history     []DepositHandlerAddFuncCall
+	mutex       sync.Mutex
+}
+
+// Add delegates to the next hook function in the queue and stores the
+// parameter and result values of this invocation.
+func (m *MockDepositHandler) Add(v0 *v2.Txn, v1 uint32, v2 []byte, v3 *big.Int, v4 *appObjs.Owner) error {
+	r0 := m.AddFunc.nextHook()(v0, v1, v2, v3, v4)
+	m.AddFunc.appendCall(DepositHandlerAddFuncCall{v0, v1, v2, v3, v4, r0})
+	return r0
+}
+
+// SetDefaultHook sets function that is called when the Add method of the
+// parent MockDepositHandler instance is invoked and the hook queue is
+// empty.
+func (f *DepositHandlerAddFunc) SetDefaultHook(hook func(*v2.Txn, uint32, []byte, *big.Int, *appObjs.Owner) error) {
+	f.defaultHook = hook
+}
+
+// PushHook adds a function to the end of hook queue. Each invocation of the
+// Add method of the parent MockDepositHandler instance invokes the hook at
+// the front of the queue and discards it. After the queue is empty, the
+// default hook function is invoked for any future action.
+func (f *DepositHandlerAddFunc) PushHook(hook func(*v2.Txn, uint32, []byte, *big.Int, *appObjs.Owner) error) {
+	f.mutex.Lock()
+	f.hooks = append(f.hooks, hook)
+	f.mutex.Unlock()
+}
+
+// SetDefaultReturn calls SetDefaultHook with a function that returns the
+// given values.
+func (f *DepositHandlerAddFunc) SetDefaultReturn(r0 error) {
+	f.SetDefaultHook(func(*v2.Txn, uint32, []byte, *big.Int, *appObjs.Owner) error {
+		return r0
+	})
+}
+
+// PushReturn calls PushHook with a function that returns the given values.
+func (f *DepositHandlerAddFunc) PushReturn(r0 error) {
+	f.PushHook(func(*v2.Txn, uint32, []byte, *big.Int, *appObjs.Owner) error {
+		return r0
+	})
+}
+
+func (f *DepositHandlerAddFunc) nextHook() func(*v2.Txn, uint32, []byte, *big.Int, *appObjs.Owner) error {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if len(f.hooks) == 0 {
+		return f.defaultHook
+	}
+
+	hook := f.hooks[0]
+	f.hooks = f.hooks[1:]
+	return hook
+}
+
+func (f *DepositHandlerAddFunc) appendCall(r0 DepositHandlerAddFuncCall) {
+	f.mutex.Lock()
+	f.history = append(f.history, r0)
+	f.mutex.Unlock()
+}
+
+// History returns a sequence of DepositHandlerAddFuncCall objects
+// describing the invocations of this function.
+func (f *DepositHandlerAddFunc) History() []DepositHandlerAddFuncCall {
+	f.mutex.Lock()
+	history := make([]DepositHandlerAddFuncCall, len(f.history))
+	copy(history, f.history)
+	f.mutex.Unlock()
+
+	return history
+}
+
+// DepositHandlerAddFuncCall is an object that describes an invocation of
+// method Add on an instance of MockDepositHandler.
+type DepositHandlerAddFuncCall struct {
+	// Arg0 is the value of the 1st argument passed to this method
+	// invocation.
+	Arg0 *v2.Txn
+	// Arg1 is the value of the 2nd argument passed to this method
+	// invocation.
+	Arg1 uint32
+	// Arg2 is the value of the 3rd argument passed to this method
+	// invocation.
+	Arg2 []byte
+	// Arg3 is the value of the 4th argument passed to this method
+	// invocation.
+	Arg3 *big.Int
+	// Arg4 is the value of the 5th argument passed to this method
+	// invocation.
+	Arg4 *appObjs.Owner
+	// Result0 is the value of the 1st result returned from this method
+	// invocation.
+	Result0 error
+}
+
+// Args returns an interface slice containing the arguments of this
+// invocation.
+func (c DepositHandlerAddFuncCall) Args() []interface{} {
+	return []interface{}{c.Arg0, c.Arg1, c.Arg2, c.Arg3, c.Arg4}
+}
+
+// Results returns an interface slice containing the results of this
+// invocation.
+func (c DepositHandlerAddFuncCall) Results() []interface{} {
+	return []interface{}{c.Result0}
 }
