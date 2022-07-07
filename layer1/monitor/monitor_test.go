@@ -4,10 +4,13 @@ package monitor
 
 import (
 	"encoding/json"
+	"github.com/alicenet/alicenet/bridge/bindings"
 	"github.com/alicenet/alicenet/constants"
+	"github.com/alicenet/alicenet/layer1/ethereum"
 	"github.com/alicenet/alicenet/layer1/executor"
 	"github.com/alicenet/alicenet/layer1/executor/tasks"
 	"github.com/alicenet/alicenet/layer1/executor/tasks/dkg/state"
+	"github.com/alicenet/alicenet/layer1/monitor/events"
 	"github.com/alicenet/alicenet/layer1/transaction"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -67,8 +70,10 @@ func getMonitor(t *testing.T) (*monitor, *executor.TasksScheduler, chan tasks.Ta
 	tasksReqChan := make(chan tasks.TaskRequest, 10)
 	txWatcher := transaction.NewWatcher(eth, 12, monDB, false, constants.TxPollingTime)
 	tasksScheduler, err := executor.NewTasksScheduler(monDB, eth, adminHandler, tasksReqChan, txWatcher)
+	contracts := mocks.NewMockContracts()
+	contracts.GetAllAddressesFunc.SetDefaultReturn([]common.Address{})
 
-	mon, err := NewMonitor(monDB, monDB, adminHandler, depositHandler, eth, mocks.NewMockContracts(), 2*time.Second, 100, tasksReqChan)
+	mon, err := NewMonitor(monDB, monDB, adminHandler, depositHandler, eth, contracts, 2*time.Second, 100, tasksReqChan)
 	assert.Nil(t, err)
 	EPOCH := uint32(1)
 	populateMonitor(mon.State, EPOCH)
@@ -103,6 +108,23 @@ func TestMonitorPersist(t *testing.T) {
 func TestProcessEvents(t *testing.T) {
 	mon, tasksScheduler, tasksReqChan, eth := getMonitor(t)
 
+	defer close(tasksReqChan)
+	err := tasksScheduler.Start()
+	assert.Nil(t, err)
+	defer tasksScheduler.Close()
+
+	ethDkgMock := mocks.NewMockIETHDKG()
+	event := &bindings.ETHDKGRegistrationOpened{
+		StartBlock:         big.NewInt(1),
+		NumberValidators:   big.NewInt(1),
+		Nonce:              big.NewInt(1),
+		PhaseLength:        big.NewInt(1),
+		ConfirmationLength: big.NewInt(1),
+		Raw:                types.Log{},
+	}
+	ethDkgMock.ParseRegistrationOpenedFunc.SetDefaultReturn(event, nil)
+	ethereum.SetEthDkg(ethDkgMock)
+
 	account := accounts.Account{Address: common.Address{1, 2, 3, 4}}
 	mon.State.PotentialValidators[account.Address] = objects.PotentialValidator{
 		Account: account.Address,
@@ -111,23 +133,19 @@ func TestProcessEvents(t *testing.T) {
 	eth.GetFinalizedHeightFunc.SetDefaultReturn(100, nil)
 	eth.GetDefaultAccountFunc.SetDefaultReturn(account)
 
-	logHash := common.BytesToHash([]byte("RegistrationOpened"))
+	ethDKGEvents := events.GetETHDKGEvents()
 	logs := []types.Log{
-		{Topics: []common.Hash{logHash}},
+		{Topics: []common.Hash{ethDKGEvents["RegistrationOpened"].ID}},
 	}
 
-	eth.GetEventsFunc.SetDefaultReturn(logs, nil)
-
-	defer close(tasksReqChan)
-	err := tasksScheduler.Start()
-	assert.Nil(t, err)
-	defer tasksScheduler.Close()
+	eth.GetEventsFunc.SetDefaultReturn(nil, nil)
+	eth.GetEventsFunc.PushReturn(logs, nil)
 
 	err = mon.Start()
 	assert.Nil(t, err)
 	defer mon.Close()
 
-	<-time.After(100 * time.Millisecond)
+	<-time.After(2 * time.Second)
 
 	assert.Equal(t, 2, len(tasksScheduler.Schedule))
 

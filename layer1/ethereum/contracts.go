@@ -301,3 +301,9 @@ func CleanGlobalVariables(t *testing.T) {
 	contracts = nil
 	once = sync.Once{}
 }
+
+func SetEthDkg(ethdkg bindings.IETHDKG) {
+	contracts = &Contracts{}
+	contracts.isInitialized = true
+	contracts.ethdkg = ethdkg
+}
