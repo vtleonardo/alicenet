@@ -20,7 +20,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type TasksManager struct {
+type TasksProcessor struct {
 	sync.RWMutex
 	TxsBackup map[string]*types.Transaction `json:"transactions_backup"`
 	txWatcher transaction.Watcher           `json:"-"`
@@ -28,41 +28,41 @@ type TasksManager struct {
 	logger    *logrus.Entry                 `json:"-"`
 }
 
-// Creates a new TasksManager instance
-func NewTaskManager(txWatcher transaction.Watcher, database *db.Database, logger *logrus.Entry) (*TasksManager, error) {
-	taskManager := &TasksManager{
+// Creates a new TaskProcessor instance
+func NewTaskProcessor(txWatcher transaction.Watcher, database *db.Database, logger *logrus.Entry) (*TasksProcessor, error) {
+	taskProcessor := &TasksProcessor{
 		TxsBackup: make(map[string]*types.Transaction),
 		txWatcher: txWatcher,
 		database:  database,
 		logger:    logger,
 	}
 
-	err := taskManager.loadState()
+	err := taskProcessor.loadState()
 	if err != nil {
-		taskManager.logger.Warnf("could not find previous State: %v", err)
+		taskProcessor.logger.Warnf("could not find previous State: %v", err)
 		if err != badger.ErrKeyNotFound {
 			return nil, err
 		}
 	}
 
-	return taskManager, nil
+	return taskProcessor, nil
 }
 
-func (tm *TasksManager) AddTxBackup(uuid string, tx *types.Transaction) error {
+func (tm *TasksProcessor) AddTxBackup(uuid string, tx *types.Transaction) error {
 	tm.Lock()
 	defer tm.Unlock()
 	tm.TxsBackup[uuid] = tx
 	return tm.persistState()
 }
 
-func (tm *TasksManager) RemoveTxBackup(uuid string) error {
+func (tm *TasksProcessor) RemoveTxBackup(uuid string) error {
 	tm.Lock()
 	defer tm.Unlock()
 	delete(tm.TxsBackup, uuid)
 	return tm.persistState()
 }
 
-func (tm *TasksManager) GetTxBackup(uuid string) (*types.Transaction, bool) {
+func (tm *TasksProcessor) GetTxBackup(uuid string) (*types.Transaction, bool) {
 	tm.RLock()
 	defer tm.RUnlock()
 	txn, present := tm.TxsBackup[uuid]
@@ -71,8 +71,8 @@ func (tm *TasksManager) GetTxBackup(uuid string) (*types.Transaction, bool) {
 
 // main function to manage a task. It basically an abstraction to handle the
 // task execution in a separate process.
-func (tm *TasksManager) ManageTask(mainCtx context.Context, task tasks.Task, name string, taskId string, database *db.Database, logger *logrus.Entry, eth layer1.Client, taskResponseChan tasks.TaskResponseChan) {
-	err := tm.processTask(mainCtx, task, name, taskId, database, logger, eth, taskResponseChan)
+func (tm *TasksProcessor) ProcessTask(mainCtx context.Context, task tasks.Task, name string, taskId string, database *db.Database, logger *logrus.Entry, eth layer1.Client, taskResponseChan tasks.TaskResponseChan) {
+	err := tm.process(mainCtx, task, name, taskId, database, logger, eth, taskResponseChan)
 	// Clean up in case the task was killed
 	if task.WasKilled() {
 		task.GetLogger().Trace("task was externally killed, removing tx backup")
@@ -81,7 +81,7 @@ func (tm *TasksManager) ManageTask(mainCtx context.Context, task tasks.Task, nam
 	task.Finish(err)
 }
 
-func (tm *TasksManager) processTask(mainCtx context.Context, task tasks.Task, name string, taskId string, database *db.Database, logger *logrus.Entry, eth layer1.Client, taskResponseChan tasks.TaskResponseChan) error {
+func (tm *TasksProcessor) process(mainCtx context.Context, task tasks.Task, name string, taskId string, database *db.Database, logger *logrus.Entry, eth layer1.Client, taskResponseChan tasks.TaskResponseChan) error {
 	taskCtx, cf := context.WithCancel(mainCtx)
 	defer cf()
 	defer task.Close()
@@ -146,7 +146,7 @@ func prepareTask(ctx context.Context, task tasks.Task, retryDelay time.Duration)
 
 // executeTask executes task business logic. We keep retrying until the task is
 // killed, we get an unrecoverable error or we succeed
-func (tm *TasksManager) executeTask(ctx context.Context, task tasks.Task, retryDelay time.Duration) error {
+func (tm *TasksProcessor) executeTask(ctx context.Context, task tasks.Task, retryDelay time.Duration) error {
 	logger := task.GetLogger()
 	for {
 		hasToExecute, err := shouldExecute(ctx, task)
@@ -193,7 +193,7 @@ func (tm *TasksManager) executeTask(ctx context.Context, task tasks.Task, retryD
 // checks if a task is complete. The function is going to subscribe a
 // transaction in the transactionWatcher, and it will wait until it gets the
 // receipt, the task is killed, or shouldExecute returns false.
-func (tm *TasksManager) checkCompletion(ctx context.Context, task tasks.Task, txn *types.Transaction) (bool, error) {
+func (tm *TasksProcessor) checkCompletion(ctx context.Context, task tasks.Task, txn *types.Transaction) (bool, error) {
 	var err error
 	var receipt *types.Receipt
 	logger := task.GetLogger()
@@ -209,7 +209,7 @@ func (tm *TasksManager) checkCompletion(ctx context.Context, task tasks.Task, tx
 		select {
 		case <-ctx.Done():
 			return true, ctx.Err()
-		case <-time.After(constants.TaskManagerPoolingTime):
+		case <-time.After(constants.TaskProcessorPoolingTime):
 		}
 
 		if receiptResponse.IsReady() {
@@ -278,15 +278,15 @@ func shouldExecute(ctx context.Context, task tasks.Task) (bool, error) {
 }
 
 // persist task manager state to disk
-func (tm *TasksManager) persistState() error {
-	logger := logging.GetLogger("staterecover").WithField("State", "taskManager")
+func (tm *TasksProcessor) persistState() error {
+	logger := logging.GetLogger("staterecover").WithField("State", "taskProcessor")
 	rawData, err := json.Marshal(tm)
 	if err != nil {
 		return err
 	}
 
 	err = tm.database.Update(func(txn *badger.Txn) error {
-		key := dbprefix.PrefixTaskManagerState()
+		key := dbprefix.PrefixTaskProcessorState()
 		logger.WithField("Key", string(key)).Debug("Saving state in the database")
 		if err := utils.SetValue(txn, key, rawData); err != nil {
 			logger.Error("Failed to set Value")
@@ -307,10 +307,10 @@ func (tm *TasksManager) persistState() error {
 }
 
 // load task's manager state from database
-func (tm *TasksManager) loadState() error {
-	logger := logging.GetLogger("staterecover").WithField("State", "taskManager")
+func (tm *TasksProcessor) loadState() error {
+	logger := logging.GetLogger("staterecover").WithField("State", "taskProcessor")
 	if err := tm.database.View(func(txn *badger.Txn) error {
-		key := dbprefix.PrefixTaskManagerState()
+		key := dbprefix.PrefixTaskProcessorState()
 		logger.WithField("Key", string(key)).Debug("Loading state from database")
 		rawData, err := utils.GetValue(txn, key)
 		if err != nil {

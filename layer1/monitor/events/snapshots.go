@@ -12,7 +12,7 @@ import (
 )
 
 // ProcessSnapshotTaken handles receiving snapshots
-func ProcessSnapshotTaken(eth layer1.Client, logger *logrus.Entry, log types.Log, adminHandler monInterfaces.AdminHandler, taskRequestChan chan<- tasks.TaskRequest) error {
+func ProcessSnapshotTaken(eth layer1.Client, logger *logrus.Entry, log types.Log, adminHandler monInterfaces.AdminHandler, taskRequestChan chan<- tasks.Request) error {
 
 	logger.Info("ProcessSnapshotTaken() ...")
 
@@ -71,7 +71,7 @@ func ProcessSnapshotTaken(eth layer1.Client, logger *logrus.Entry, log types.Log
 	}
 
 	// kill any task that might still be trying to do this snapshot
-	taskRequestChan <- tasks.NewKillTaskRequest(&snapshots.SnapshotTask{})
+	taskRequestChan <- tasks.NewRequestKillTaskByType(&snapshots.SnapshotTask{})
 
 	return nil
 }

@@ -53,7 +53,7 @@ type monitor struct {
 	batchSize      uint64
 
 	//for communication with the TasksScheduler
-	taskRequestChan chan<- tasks.TaskRequest
+	taskRequestChan chan<- tasks.Request
 }
 
 // NewMonitor creates a new Monitor
@@ -65,7 +65,7 @@ func NewMonitor(cdb *db.Database,
 	contracts layer1.Contracts,
 	tickInterval time.Duration,
 	batchSize uint64,
-	taskRequestChan chan<- tasks.TaskRequest,
+	taskRequestChan chan<- tasks.Request,
 ) (*monitor, error) {
 
 	logger := logging.GetLogger("monitor").WithFields(logrus.Fields{
@@ -356,7 +356,7 @@ func ProcessEvents(eth layer1.Client, monitorState *objects.MonitorState, logs [
 }
 
 // PersistSnapshot should be registered as a callback and be kicked off automatically by badger when appropriate
-func PersistSnapshot(eth layer1.Client, bh *objs.BlockHeader, taskRequestChan chan<- tasks.TaskRequest, monDB *db.Database) error {
+func PersistSnapshot(eth layer1.Client, bh *objs.BlockHeader, taskRequestChan chan<- tasks.Request, monDB *db.Database) error {
 	if bh == nil {
 		return errors.New("invalid blockHeader for snapshot")
 	}
@@ -372,9 +372,9 @@ func PersistSnapshot(eth layer1.Client, bh *objs.BlockHeader, taskRequestChan ch
 	}
 
 	// kill any snapshot task that might be running
-	taskRequestChan <- tasks.NewKillTaskRequest(&snapshots.SnapshotTask{})
+	taskRequestChan <- tasks.NewRequestKillTaskByType(&snapshots.SnapshotTask{})
 
-	taskRequestChan <- tasks.NewScheduleTaskRequest(snapshots.NewSnapshotTask(0, 0, uint64(bh.BClaims.Height)))
+	taskRequestChan <- tasks.NewRequestScheduleTask(snapshots.NewSnapshotTask(uint64(bh.BClaims.Height)))
 
 	return nil
 }

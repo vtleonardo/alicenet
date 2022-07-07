@@ -236,7 +236,7 @@ type SubscribeRequest struct {
 	responseChannel  *SubscribeResponseChannel // channel where we going to send the request response
 }
 
-// creates a new subscribe request
+// NewSubscribeRequest creates a new subscribe request
 func NewSubscribeRequest(txn *types.Transaction, options *SubscribeOptions) SubscribeRequest {
 	return SubscribeRequest{txn: txn, responseChannel: NewResponseChannel(), subscribeOptions: options}
 }

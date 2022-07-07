@@ -28,7 +28,6 @@ import (
 	"github.com/alicenet/alicenet/layer1"
 	"github.com/alicenet/alicenet/layer1/ethereum"
 	"github.com/alicenet/alicenet/layer1/executor"
-	"github.com/alicenet/alicenet/layer1/executor/tasks"
 	"github.com/alicenet/alicenet/layer1/monitor"
 	"github.com/alicenet/alicenet/layer1/transaction"
 	"github.com/alicenet/alicenet/localrpc"
@@ -279,11 +278,7 @@ func validatorNode(cmd *cobra.Command, args []string) {
 	txWatcher := transaction.WatcherFromNetwork(eth, monDB, config.Configuration.Ethereum.TxMetricsDisplay, constants.TxPollingTime)
 	defer txWatcher.Close()
 
-	// Setup tasks scheduler
-	taskRequestChan := make(chan tasks.TaskRequest, constants.TaskSchedulerBufferSize)
-	defer close(taskRequestChan)
-
-	tasksScheduler, err := executor.NewTasksScheduler(monDB, eth, consAdminHandlers, taskRequestChan, txWatcher)
+	tasksScheduler, err := executor.NewTasksScheduler(monDB, eth, consAdminHandlers, txWatcher)
 	if err != nil {
 		panic(err)
 	}

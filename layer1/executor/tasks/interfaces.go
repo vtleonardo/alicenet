@@ -39,5 +39,5 @@ type TaskState interface {
 
 // TaskResponseChan the interface requirements of a task response chan
 type TaskResponseChan interface {
-	Add(TaskResponse)
+	Add(Response)
 }

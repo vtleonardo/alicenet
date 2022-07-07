@@ -18,7 +18,7 @@ func PrefixTransactionWatcherState() []byte {
 	return []byte("lc")
 }
 
-func PrefixTaskManagerState() []byte {
+func PrefixTaskProcessorState() []byte {
 	return []byte("ld")
 }
 

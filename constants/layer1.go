@@ -4,7 +4,7 @@ import "time"
 
 const (
 	// How much time we are going to poll to check if the task is completed
-	TaskManagerPoolingTime time.Duration = 7 * time.Second
+	TaskProcessorPoolingTime time.Duration = 7 * time.Second
 )
 
 const (

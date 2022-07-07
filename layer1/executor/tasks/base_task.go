@@ -10,58 +10,30 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TaskAction is an enumeration indicating the actions that the scheduler
-// can do with a task during a request:
-type TaskAction int
-
-// The possible actions that the scheduler can do with a task during a request:
-// * Kill          - To kill/prune a task type immediately
-// * Schedule      - To schedule a new task
-const (
-	Kill TaskAction = iota
-	Schedule
-)
-
-func (action TaskAction) String() string {
-	return [...]string{
-		"Kill",
-		"Schedule",
-	}[action]
-}
-
-type TaskResponse struct {
-	Id  string
-	Err error
-}
-
-type TaskRequest struct {
-	Action TaskAction
-	Task   Task
-}
-
-func NewScheduleTaskRequest(task Task) TaskRequest {
-	return TaskRequest{Action: Schedule, Task: task}
-}
-
-func NewKillTaskRequest(task Task) TaskRequest {
-	return TaskRequest{Action: Kill, Task: task}
-}
-
 type BaseTask struct {
-	Name                string                        `json:"name"`
-	AllowMultiExecution bool                          `json:"allowMultiExecution"`
-	SubscribeOptions    *transaction.SubscribeOptions `json:"subscribeOptions,omitempty"`
-	Id                  string                        `json:"id"`
-	Start               uint64                        `json:"start"`
-	End                 uint64                        `json:"end"`
-	isInitialized       bool                          `json:"-"`
-	wasKilled           bool                          `json:"-"`
-	ctx                 context.Context               `json:"-"`
-	cancelFunc          context.CancelFunc            `json:"-"`
-	database            *db.Database                  `json:"-"`
-	logger              *logrus.Entry                 `json:"-"`
-	client              layer1.Client                 `json:"-"`
-	taskResponseChan    TaskResponseChan              `json:"-"`
+	// Task name/type
+	Name string `json:"name"`
+	// If this task can be executed in parallel with other tasks of the same type/name
+	AllowMultiExecution bool `json:"allowMultiExecution"`
+	// Subscription options (if the task should be retried, finality delay, etc)
+	SubscribeOptions *transaction.SubscribeOptions `json:"subscribeOptions,omitempty"`
+	// Unique Id of the task
+	Id string `json:"id"`
+	// Which block the task should be started. In case the start is 0 the task is started immediately.
+	Start uint64 `json:"start"`
+	// Which block the task should be ended. In case the end is 0 the task runs
+	// forever (until the task succeeds or its killed, be careful when using this).
+	// Otherwise, the task will end at the specified block.
+	End uint64 `json:"end"`
+
+	isInitialized    bool               `json:"-"`
+	wasKilled        bool               `json:"-"`
+	ctx              context.Context    `json:"-"`
+	cancelFunc       context.CancelFunc `json:"-"`
+	database         *db.Database       `json:"-"`
+	logger           *logrus.Entry      `json:"-"`
+	client           layer1.Client      `json:"-"`
+	taskResponseChan TaskResponseChan   `json:"-"`
 }
 
 func NewBaseTask(start uint64, end uint64, allowMultiExecution bool, subscribeOptions *transaction.SubscribeOptions) *BaseTask {
@@ -163,7 +135,7 @@ func (bt *BaseTask) Finish(err error) {
 		bt.logger.Info("task is done")
 	}
 	if bt.taskResponseChan != nil {
-		bt.taskResponseChan.Add(TaskResponse{Id: bt.Id, Err: err})
+		bt.taskResponseChan.Add(Response{Id: bt.Id, Err: err})
 	}
 }
 
