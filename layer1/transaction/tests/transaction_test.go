@@ -89,90 +89,72 @@ func TestSubscribeAndWaitForValidTx(t *testing.T) {
 
 }
 
-//func TestSubscribeAndWaitForInvalidTx(t *testing.T) {
-//	finalityDelay := uint64(6)
-//	numAccounts := 2
-//	_, _ := Setup(finalityDelay, numAccounts, common.HexToAddress("0x0b1F9c2b7bED6Db83295c7B5158E3806d67eC5bc"))
-//	assert.Nil(t, err)
-//	defer eth.Close()
-//
-//	testutils.SetBlockInterval(t, eth, 200)
-//
-//	accounts := eth.GetKnownAccounts()
-//	assert.Equal(t, numAccounts, len(accounts))
-//
-//	for _, acct := range accounts {
-//		err := eth.UnlockAccount(acct)
-//		assert.Nil(t, err)
-//	}
-//
-//	owner := accounts[0]
-//	user := accounts[1]
-//
-//	ctx, cf := context.WithTimeout(context.Background(), 300*time.Second)
-//	defer cf()
-//
-//	amount := big.NewInt(12_345)
-//
-//	txOpts, err := eth.GetTransactionOpts(ctx, owner)
-//	txOpts.NoSend = true
-//	txOpts.Value = amount
-//	assert.Nil(t, err)
-//	//Creating tx but not sending it
-//	txn, err := eth.Contracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
-//	assert.Nil(t, err)
-//
-//	watcher := transaction.WatcherFromNetwork(eth)
-//	receipt, err := watcher.SubscribeAndWait(ctx, txn)
-//	assert.NotNil(t, err)
-//	assert.Nil(t, receipt)
-//	_, ok := err.(*transaction.ErrNonRecoverable)
-//	assert.True(t, ok)
-//}
-//
-//func TestSubscribeAndWaitForStaleTx(t *testing.T) {
-//	finalityDelay := uint64(6)
-//	numAccounts := 2
-//	_, _ := Setup(finalityDelay, numAccounts, common.HexToAddress("0x0b1F9c2b7bED6Db83295c7B5158E3806d67eC5bc"))
-//	assert.Nil(t, err)
-//	defer eth.Close()
-//
-//	testutils.SetBlockInterval(t, eth, 500)
-//	// setting base fee to 10k GWei
-//	testutils.SetNextBlockBaseFee(t, eth, 10_000_000_000_000)
-//
-//	accounts := eth.GetKnownAccounts()
-//	assert.Equal(t, numAccounts, len(accounts))
-//
-//	for _, acct := range accounts {
-//		err := eth.UnlockAccount(acct)
-//		assert.Nil(t, err)
-//	}
-//
-//	owner := accounts[0]
-//	user := accounts[1]
-//
-//	ctx, cf := context.WithTimeout(context.Background(), 300*time.Second)
-//	defer cf()
-//
-//	amount := big.NewInt(12_345)
-//
-//	txOpts, err := eth.GetTransactionOpts(ctx, owner)
-//	txOpts.GasFeeCap = big.NewInt(1_000_000_000)
-//	txOpts.Value = amount
-//	assert.Nil(t, err)
-//	txn, err := eth.Contracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
-//	assert.Nil(t, err)
-//
-//	watcher := transaction.WatcherFromNetwork(eth)
-//	receipt, err := watcher.SubscribeAndWait(ctx, txn)
-//
-//	assert.NotNil(t, err)
-//	assert.Nil(t, receipt)
-//	_, ok := err.(*transaction.ErrTransactionStale)
-//	assert.True(t, ok)
-//}
-//
+func TestSubscribeAndWaitForInvalidTx(t *testing.T) {
+	numAccounts := 2
+	fixture, watcher := Setup(t, numAccounts)
+	eth := fixture.Client
+
+	accounts := eth.GetKnownAccounts()
+	assert.Equal(t, numAccounts, len(accounts))
+
+	owner := accounts[0]
+	user := accounts[1]
+
+	ctx, cf := context.WithTimeout(context.Background(), 300*time.Second)
+	defer cf()
+
+	amount := big.NewInt(12_345)
+
+	txOpts, err := eth.GetTransactionOpts(ctx, owner)
+	txOpts.NoSend = true
+	txOpts.Value = amount
+	assert.Nil(t, err)
+	//Creating tx but not sending it
+	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
+	assert.Nil(t, err)
+
+	receipt, err := watcher.SubscribeAndWait(ctx, txn, nil)
+	assert.NotNil(t, err)
+	assert.Nil(t, receipt)
+	//_, ok := err.(*transaction.ErrNonRecoverable)
+	//assert.True(t, ok)
+}
+
+func TestSubscribeAndWaitForStaleTx(t *testing.T) {
+	numAccounts := 2
+	fixture, watcher := Setup(t, numAccounts)
+	eth := fixture.Client
+
+	// setting base fee to 10k GWei
+	hardhatEndpoint := "http://127.0.0.1:8545"
+	tests.SetNextBlockBaseFee(hardhatEndpoint, 10_000_000_000_000)
+
+	accounts := eth.GetKnownAccounts()
+	assert.Equal(t, numAccounts, len(accounts))
+
+	owner := accounts[0]
+	user := accounts[1]
+
+	ctx, cf := context.WithTimeout(context.Background(), 300*time.Second)
+	defer cf()
+
+	amount := big.NewInt(12_345)
+
+	txOpts, err := eth.GetTransactionOpts(ctx, owner)
+	txOpts.GasFeeCap = big.NewInt(1_000_000_000_000)
+	txOpts.Value = amount
+	assert.Nil(t, err)
+	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
+	assert.Nil(t, err)
+
+	receipt, err := watcher.SubscribeAndWait(ctx, txn, nil)
+
+	assert.NotNil(t, err)
+	assert.Nil(t, receipt)
+	_, ok := err.(*transaction.ErrTransactionStale)
+	assert.True(t, ok)
+}
+
 //func TestAutoSubscribeOfPendingTransaction(t *testing.T) {
 //	finalityDelay := uint64(6)
 //	numAccounts := 2
