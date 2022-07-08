@@ -73,6 +73,7 @@ func getMonitor(t *testing.T) (*monitor, *executor.TasksScheduler, chan tasks.Ta
 	tasksReqChan := make(chan tasks.TaskRequest, 10)
 	txWatcher := transaction.NewWatcher(eth, 12, monDB, false, constants.TxPollingTime)
 	tasksScheduler, err := executor.NewTasksScheduler(monDB, eth, adminHandler, tasksReqChan, txWatcher)
+
 	contracts := mocks.NewMockContracts()
 	contracts.GetAllAddressesFunc.SetDefaultReturn([]common.Address{})
 
