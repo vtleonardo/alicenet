@@ -115,7 +115,7 @@ func TestProcessEvents(t *testing.T) {
 
 	ethDkgMock := mocks.NewMockIETHDKG()
 	event := &bindings.ETHDKGRegistrationOpened{
-		StartBlock:         big.NewInt(1),
+		StartBlock:         big.NewInt(10),
 		NumberValidators:   big.NewInt(1),
 		Nonce:              big.NewInt(1),
 		PhaseLength:        big.NewInt(1),
@@ -130,7 +130,7 @@ func TestProcessEvents(t *testing.T) {
 		Account: account.Address,
 	}
 	eth.EndpointInSyncFunc.SetDefaultReturn(true, 4, nil)
-	eth.GetFinalizedHeightFunc.SetDefaultReturn(100, nil)
+	eth.GetFinalizedHeightFunc.SetDefaultReturn(1, nil)
 	eth.GetDefaultAccountFunc.SetDefaultReturn(account)
 
 	ethDKGEvents := events.GetETHDKGEvents()
@@ -141,12 +141,12 @@ func TestProcessEvents(t *testing.T) {
 	eth.GetEventsFunc.SetDefaultReturn(nil, nil)
 	eth.GetEventsFunc.PushReturn(logs, nil)
 
+	<-time.After(5 * time.Second)
 	err = mon.Start()
 	assert.Nil(t, err)
 	defer mon.Close()
 
-	<-time.After(2 * time.Second)
-
+	<-time.After(5 * time.Second)
 	assert.Equal(t, 2, len(tasksScheduler.Schedule))
 
 	dkgState, err := state.GetDkgState(mon.db)
