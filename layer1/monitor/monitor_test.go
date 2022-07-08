@@ -164,6 +164,8 @@ func TestProcessEvents(t *testing.T) {
 
 	mon.Close()
 	tasksScheduler.Close()
+
+	<-time.After(15 * time.Millisecond)
 	close(tasksReqChan)
 }
 
