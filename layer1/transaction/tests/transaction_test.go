@@ -15,17 +15,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Setup(t *testing.T, accounts int) (*tests.ClientFixture, *transaction.FrontWatcher) {
+func Setup(t *testing.T, accounts int, pollingTime time.Duration) (*tests.ClientFixture, *transaction.FrontWatcher) {
 	fixture := setupEthereum(t, accounts)
 	db := mocks.NewTestDB()
-	watcher := transaction.WatcherFromNetwork(fixture.Client, db, false, 1*time.Second)
+	watcher := transaction.WatcherFromNetwork(fixture.Client, db, false, pollingTime)
 
 	return fixture, watcher
 }
 
 func TestSubscribeAndWaitForValidTx(t *testing.T) {
 	numAccounts := 2
-	fixture, watcher := Setup(t, numAccounts)
+	fixture, watcher := Setup(t, numAccounts, 1*time.Second)
 	eth := fixture.Client
 	accounts := eth.GetKnownAccounts()
 	assert.Equal(t, numAccounts, len(accounts))
@@ -92,7 +92,7 @@ func TestSubscribeAndWaitForValidTx(t *testing.T) {
 
 func TestSubscribeAndWaitForInvalidTxNotSigned(t *testing.T) {
 	numAccounts := 2
-	fixture, watcher := Setup(t, numAccounts)
+	fixture, watcher := Setup(t, numAccounts, 1*time.Second)
 	eth := fixture.Client
 
 	accounts := eth.GetKnownAccounts()
@@ -136,7 +136,8 @@ func TestSubscribeAndWaitForInvalidTxNotSigned(t *testing.T) {
 
 func TestSubscribeAndWaitForTxNotFound(t *testing.T) {
 	numAccounts := 2
-	fixture, watcher := Setup(t, numAccounts)
+	pollingTime := 100 * time.Millisecond
+	fixture, watcher := Setup(t, numAccounts, pollingTime)
 	eth := fixture.Client
 
 	accounts := eth.GetKnownAccounts()
@@ -177,8 +178,8 @@ func TestSubscribeAndWaitForTxNotFound(t *testing.T) {
 		fixture.Logger.Errorf("signing error:%v", err)
 	}
 
-	//hardhatEndpoint := "http://127.0.0.1:8545"
-	//tests.SetBlockInterval(hardhatEndpoint, 50)
+	hardhatEndpoint := "http://127.0.0.1:8545"
+	go tests.MineBlockWithFrequency(ctx, hardhatEndpoint, pollingTime*15)
 
 	receipt, err := watcher.SubscribeAndWait(ctx, signedTx, nil)
 	assert.NotNil(t, err)
@@ -190,7 +191,7 @@ func TestSubscribeAndWaitForTxNotFound(t *testing.T) {
 
 func TestSubscribeAndWaitForStaleTx(t *testing.T) {
 	numAccounts := 2
-	fixture, watcher := Setup(t, numAccounts)
+	fixture, watcher := Setup(t, numAccounts, 1*time.Second)
 	eth := fixture.Client
 
 	// setting base fee to 10k GWei

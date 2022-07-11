@@ -415,6 +415,20 @@ func MineBlocks(endPoint string, blocksToMine uint64) {
 	}
 }
 
+// MineBlocks mines a block every frequency time
+func MineBlockWithFrequency(ctx context.Context, endPoint string, frequency time.Duration) {
+	miningTime := time.After(frequency)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-miningTime:
+			MineBlocks(endPoint, 1)
+			miningTime = time.After(frequency)
+		}
+	}
+}
+
 // Mine finality delay blocks + 1
 func MineFinalityDelayBlocks(client layer1.Client) {
 	MineBlocks(client.GetEndpoint(), client.GetFinalityDelay()+1)
