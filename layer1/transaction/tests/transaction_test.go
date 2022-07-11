@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"github.com/alicenet/alicenet/layer1/ethereum"
 	"github.com/alicenet/alicenet/layer1/tests"
 	"github.com/alicenet/alicenet/test/mocks"
@@ -89,7 +90,51 @@ func TestSubscribeAndWaitForValidTx(t *testing.T) {
 
 }
 
-func TestSubscribeAndWaitForInvalidTx(t *testing.T) {
+func TestSubscribeAndWaitForInvalidTxNotSigned(t *testing.T) {
+	numAccounts := 2
+	fixture, watcher := Setup(t, numAccounts)
+	eth := fixture.Client
+
+	accounts := eth.GetKnownAccounts()
+	assert.Equal(t, numAccounts, len(accounts))
+
+	owner := accounts[0]
+	user := accounts[1]
+
+	ctx, cf := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cf()
+
+	amount := big.NewInt(12_345)
+
+	txOpts, err := eth.GetTransactionOpts(ctx, owner)
+	txOpts.NoSend = true
+	txOpts.Value = amount
+	assert.Nil(t, err)
+
+	//Creating tx but not sending it
+	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
+	assert.Nil(t, err)
+
+	txnRough := &types.DynamicFeeTx{}
+	txnRough.ChainID = txn.ChainId()
+	txnRough.To = txn.To()
+	txnRough.GasFeeCap = new(big.Int).Mul(new(big.Int).SetInt64(2), txn.GasFeeCap())
+	txnRough.GasTipCap = new(big.Int).Mul(new(big.Int).SetInt64(2), txn.GasTipCap())
+	txnRough.Gas = txn.Gas()
+	txnRough.Nonce = txn.Nonce() + 1
+	txnRough.Value = txn.Value()
+	txnRough.Data = txn.Data()
+
+	txnNotSigned := types.NewTx(txnRough)
+
+	receipt, err := watcher.SubscribeAndWait(ctx, txnNotSigned, nil)
+	assert.NotNil(t, err)
+	assert.Nil(t, receipt)
+	_, ok := err.(*transaction.ErrInvalidMonitorRequest)
+	assert.True(t, ok)
+}
+
+func TestSubscribeAndWaitForTxNotFound(t *testing.T) {
 	numAccounts := 2
 	fixture, watcher := Setup(t, numAccounts)
 	eth := fixture.Client
@@ -109,15 +154,38 @@ func TestSubscribeAndWaitForInvalidTx(t *testing.T) {
 	txOpts.NoSend = true
 	txOpts.Value = amount
 	assert.Nil(t, err)
+
 	//Creating tx but not sending it
 	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
 	assert.Nil(t, err)
 
-	receipt, err := watcher.SubscribeAndWait(ctx, txn, nil)
+	txnRough := &types.DynamicFeeTx{}
+	txnRough.ChainID = txn.ChainId()
+	txnRough.To = txn.To()
+	txnRough.GasFeeCap = new(big.Int).Mul(new(big.Int).SetInt64(2), txn.GasFeeCap())
+	txnRough.GasTipCap = new(big.Int).Mul(new(big.Int).SetInt64(2), txn.GasTipCap())
+	txnRough.Gas = txn.Gas()
+	txnRough.Nonce = txn.Nonce() + 1
+	txnRough.Value = txn.Value()
+	txnRough.Data = txn.Data()
+
+	signer := types.NewLondonSigner(txnRough.ChainID)
+
+	_, adminPk := tests.GetAdminAccount()
+	signedTx, err := types.SignNewTx(adminPk, signer, txnRough)
+	if err != nil {
+		fixture.Logger.Errorf("signing error:%v", err)
+	}
+
+	//hardhatEndpoint := "http://127.0.0.1:8545"
+	//tests.SetBlockInterval(hardhatEndpoint, 50)
+
+	receipt, err := watcher.SubscribeAndWait(ctx, signedTx, nil)
 	assert.NotNil(t, err)
 	assert.Nil(t, receipt)
-	//_, ok := err.(*transaction.ErrNonRecoverable)
-	//assert.True(t, ok)
+
+	_, ok := err.(*transaction.ErrTxNotFound)
+	assert.True(t, ok)
 }
 
 func TestSubscribeAndWaitForStaleTx(t *testing.T) {
@@ -138,17 +206,20 @@ func TestSubscribeAndWaitForStaleTx(t *testing.T) {
 	ctx, cf := context.WithTimeout(context.Background(), 300*time.Second)
 	defer cf()
 
-	amount := big.NewInt(12_345)
-
 	txOpts, err := eth.GetTransactionOpts(ctx, owner)
 	txOpts.GasFeeCap = big.NewInt(1_000_000_000_000)
-	txOpts.Value = amount
+	txOpts.Value = big.NewInt(12_345)
 	assert.Nil(t, err)
+
 	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
 	assert.Nil(t, err)
+	assert.NotNil(t, txn)
 
-	receipt, err := watcher.SubscribeAndWait(ctx, txn, nil)
+	receipt, err := watcher.Subscribe(ctx, txn, nil)
+	//tests.MineBlocks(hardhatEndpoint, 10)
+	<-time.After(10 * time.Second)
 
+	fmt.Printf("err - %v", err)
 	assert.NotNil(t, err)
 	assert.Nil(t, receipt)
 	_, ok := err.(*transaction.ErrTransactionStale)

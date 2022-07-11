@@ -479,7 +479,7 @@ func ResetHardhatNode(endPoint string) {
 func SetBlockInterval(endPoint string, intervalInMilliSeconds uint64) {
 	SetAutoMine(endPoint, false)
 	logger := logging.GetLogger("test")
-	logger.Tracef("Setting block interval to %v seconds", intervalInMilliSeconds)
+	logger.Tracef("Setting block interval to %v milliseconds", intervalInMilliSeconds)
 	err := SendCommandViaRPC(endPoint, "evm_setIntervalMining", intervalInMilliSeconds)
 	if err != nil {
 		panic(err)
