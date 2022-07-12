@@ -196,7 +196,7 @@ func TestSubscribeAndWaitForStaleTx(t *testing.T) {
 
 	// setting base fee to 10k GWei
 	hardhatEndpoint := "http://127.0.0.1:8545"
-	tests.SetNextBlockBaseFee(hardhatEndpoint, 10_000_000_000_000)
+	tests.SetNextBlockBaseFee(hardhatEndpoint, 6_000_000_000)
 
 	accounts := eth.GetKnownAccounts()
 	assert.Equal(t, numAccounts, len(accounts))
@@ -207,18 +207,59 @@ func TestSubscribeAndWaitForStaleTx(t *testing.T) {
 	ctx, cf := context.WithTimeout(context.Background(), 300*time.Second)
 	defer cf()
 
-	txOpts, err := eth.GetTransactionOpts(ctx, owner)
-	txOpts.GasFeeCap = big.NewInt(1_000_000_000_000)
-	txOpts.Value = big.NewInt(12_345)
+	amount := big.NewInt(12_345)
+	go func() {
+		miningTime := time.After(5 * time.Millisecond)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-miningTime:
+				_, err := ethereum.TransferEther(eth, fixture.Logger, owner.Address, user.Address, amount)
+				assert.Nil(t, err)
+				miningTime = time.After(20 * time.Millisecond)
+			}
+		}
+	}()
+
+	go tests.MineBlockWithFrequency(ctx, hardhatEndpoint, 1*time.Second)
+
+	<-time.After(3 * time.Second)
+
+	nonce, err := eth.GetPendingNonce(ctx, owner.Address)
 	assert.Nil(t, err)
 
-	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
+	gasLimit := uint64(21000)
+	baseFee, tipCap, err := eth.GetBlockBaseFeeAndSuggestedGasTip(ctx)
 	assert.Nil(t, err)
-	assert.NotNil(t, txn)
+	chainID := eth.GetChainID()
+	feeCap := new(big.Int).Mul(new(big.Int).SetInt64(30), baseFee)
+	feeCap = new(big.Int).Div(feeCap, new(big.Int).SetInt64(100))
 
-	receipt, err := watcher.Subscribe(ctx, txn, nil)
-	//tests.MineBlocks(hardhatEndpoint, 10)
-	<-time.After(10 * time.Second)
+	txRough := &types.DynamicFeeTx{
+		ChainID:   chainID,
+		To:        &user.Address,
+		GasFeeCap: feeCap,
+		GasTipCap: tipCap,
+		Gas:       gasLimit,
+		Nonce:     nonce + 1,
+		Value:     amount,
+	}
+
+	signedTx, err := eth.SignTransaction(txRough, owner.Address)
+	assert.Nil(t, err)
+	err = eth.SendTransaction(ctx, signedTx)
+	assert.Nil(t, err)
+
+	subscribeOpts := &transaction.SubscribeOptions{
+		EnableAutoRetry: false,
+		MaxStaleBlocks:  3,
+	}
+
+	receipt, err := watcher.Subscribe(ctx, signedTx, subscribeOpts)
+	for !receipt.IsReady() {
+		<-time.After(1 * time.Second)
+	}
 
 	fmt.Printf("err - %v", err)
 	assert.NotNil(t, err)
