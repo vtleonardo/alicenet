@@ -36,7 +36,7 @@ func TestSubscribeAndWaitForValidTx(t *testing.T) {
 	defer cf()
 
 	amount := big.NewInt(12_345)
-	txn, err := ethereum.TransferEther(eth, fixture.Logger, owner.Address, user.Address, amount)
+	txn, err := ethereum.TransferEther(eth, fixture.Logger, user.Address, owner.Address, amount)
 	assert.Nil(t, err)
 
 	receipt, err := watcher.SubscribeAndWait(ctx, txn, nil)
@@ -52,13 +52,13 @@ func TestSubscribeAndWaitForValidTx(t *testing.T) {
 	assert.Nil(t, err)
 	assert.False(t, isPending)
 
-	mintTxnOpts, err := eth.GetTransactionOpts(ctx, owner)
+	mintTxnOpts, err := eth.GetTransactionOpts(ctx, user)
 	assert.Nil(t, err)
 	mintTxnOpts.NoSend = false
 	//mintTxnOpts.GasFeeCap = big.NewInt(1_000_000_000)
 	mintTxnOpts.Value = amount
 
-	mintTxn, err := ethereum.GetContracts().BToken().MintTo(mintTxnOpts, user.Address, big.NewInt(1))
+	mintTxn, err := ethereum.GetContracts().BToken().MintTo(mintTxnOpts, owner.Address, big.NewInt(1))
 	assert.Nil(t, err)
 	assert.NotNil(t, mintTxn)
 
@@ -105,13 +105,13 @@ func TestSubscribeAndWaitForInvalidTxNotSigned(t *testing.T) {
 
 	amount := big.NewInt(12_345)
 
-	txOpts, err := eth.GetTransactionOpts(ctx, owner)
+	txOpts, err := eth.GetTransactionOpts(ctx, user)
 	txOpts.NoSend = true
 	txOpts.Value = amount
 	assert.Nil(t, err)
 
 	//Creating tx but not sending it
-	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
+	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, owner.Address, big.NewInt(1))
 	assert.Nil(t, err)
 
 	txnRough := &types.DynamicFeeTx{}
@@ -150,13 +150,13 @@ func TestSubscribeAndWaitForTxNotFound(t *testing.T) {
 
 	amount := big.NewInt(12_345)
 
-	txOpts, err := eth.GetTransactionOpts(ctx, owner)
+	txOpts, err := eth.GetTransactionOpts(ctx, user)
 	txOpts.NoSend = true
 	txOpts.Value = amount
 	assert.Nil(t, err)
 
 	//Creating tx but not sending it
-	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
+	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, owner.Address, big.NewInt(1))
 	assert.Nil(t, err)
 
 	txnRough := &types.DynamicFeeTx{}
@@ -209,17 +209,14 @@ func TestSubscribeAndWaitForStaleTx(t *testing.T) {
 
 	amount := big.NewInt(12_345)
 
-	txOpts, err := eth.GetTransactionOpts(ctx, owner)
+	txOpts, err := eth.GetTransactionOpts(ctx, user)
 	txOpts.GasFeeCap = big.NewInt(1_000_000_000)
 	txOpts.Value = amount
 	assert.Nil(t, err)
-	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
+	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, owner.Address, big.NewInt(1))
 	assert.Nil(t, err)
 
-	subscribeOpts := &transaction.SubscribeOptions{
-		EnableAutoRetry: false,
-		MaxStaleBlocks:  3,
-	}
+	subscribeOpts := transaction.NewSubscribeOptions(false, 3)
 	receipt, err := watcher.SubscribeAndWait(ctx, txn, subscribeOpts)
 
 	assert.NotNil(t, err)
@@ -249,17 +246,14 @@ func TestSubscribeAndWaitForStaleTxWithAutoRetry(t *testing.T) {
 
 	amount := big.NewInt(12_345)
 
-	txOpts, err := eth.GetTransactionOpts(ctx, user)
+	txOpts, err := eth.GetTransactionOpts(ctx, owner)
 	txOpts.GasFeeCap = big.NewInt(1_000_000_000)
 	txOpts.Value = amount
 	assert.Nil(t, err)
-	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, owner.Address, big.NewInt(1))
+	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
 	assert.Nil(t, err)
 
-	subscribeOpts := &transaction.SubscribeOptions{
-		EnableAutoRetry: true,
-		MaxStaleBlocks:  3,
-	}
+	subscribeOpts := transaction.NewSubscribeOptions(true, 3)
 	receipt, err := watcher.SubscribeAndWait(ctx, txn, subscribeOpts)
 
 	assert.Nil(t, err)

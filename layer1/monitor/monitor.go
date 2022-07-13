@@ -35,6 +35,8 @@ type Monitor interface {
 	GetStatus() <-chan string
 }
 
+// monitor is an internal struct used by the validator to keep track of the
+// layer1 emitted events and chain changes
 type monitor struct {
 	sync.RWMutex
 	adminHandler   interfaces.AdminHandler
@@ -56,7 +58,7 @@ type monitor struct {
 	taskRequestChan chan<- tasks.TaskRequest
 }
 
-// NewMonitor creates a new Monitor
+// NewMonitor creates a new monitor
 func NewMonitor(cdb *db.Database,
 	monDB *db.Database,
 	adminHandler interfaces.AdminHandler,
@@ -106,10 +108,12 @@ func NewMonitor(cdb *db.Database,
 
 }
 
+// GetStatus retrieves the monitor status
 func (mon *monitor) GetStatus() <-chan string {
 	return mon.statusChan
 }
 
+// Close closes the event loop
 func (mon *monitor) Close() {
 	mon.cancelChan <- true
 }
@@ -164,6 +168,7 @@ func (mon *monitor) Start() error {
 	return nil
 }
 
+// eventLoop is a loop to process the events and chain changes
 func (mon *monitor) eventLoop(logger *logrus.Entry, cancelChan <-chan bool) {
 
 	gcTimer := time.After(time.Second * constants.MonDBGCFreq)
@@ -211,6 +216,7 @@ func (mon *monitor) eventLoop(logger *logrus.Entry, cancelChan <-chan bool) {
 	}
 }
 
+// MarshalJSON implements the function that is used internally to marshal the object before saving
 func (m *monitor) MarshalJSON() ([]byte, error) {
 	m.State.RLock()
 	defer m.State.RUnlock()
@@ -223,6 +229,7 @@ func (m *monitor) MarshalJSON() ([]byte, error) {
 	return rawData, nil
 }
 
+// UnmarshalJSON implements the function that is used internally to unmarshal the object after loading
 func (m *monitor) UnmarshalJSON(raw []byte) error {
 	err := json.Unmarshal(raw, m.State)
 	return err
@@ -328,6 +335,7 @@ func MonitorTick(ctx context.Context, cf context.CancelFunc, eth layer1.Client, 
 	return nil
 }
 
+// ProcessEvents processes the events returned from layer1 chain
 func ProcessEvents(eth layer1.Client, monitorState *objects.MonitorState, logs []types.Log, logger *logrus.Entry, currentBlock uint64, eventMap *objects.EventMap) (uint64, error) {
 	logEntry := logger.WithField("Block", currentBlock)
 
@@ -380,7 +388,7 @@ func PersistSnapshot(eth layer1.Client, bh *objs.BlockHeader, taskRequestChan ch
 }
 
 // TODO: Remove from request hot path use memory cache
-// persist worker group across execution iterations
+// logWork struct for persisting worker group across execution iterations
 type logWork struct {
 	isLast    bool
 	ctx       context.Context
@@ -390,6 +398,7 @@ type logWork struct {
 	err       error
 }
 
+// eventSorter is an internal struct used to sort the keep track of processing events
 type eventSorter struct {
 	*sync.Mutex
 	wg      *sync.WaitGroup
@@ -398,6 +407,7 @@ type eventSorter struct {
 	eth     layer1.Client
 }
 
+// Start is a function to spawn all the workers
 func (es *eventSorter) Start(num uint64) {
 	for i := uint64(0); i < num; i++ {
 		es.wg.Add(1)
@@ -406,6 +416,7 @@ func (es *eventSorter) Start(num uint64) {
 	es.wg.Wait()
 }
 
+// worker gets the logs for a specific block and address
 func (es *eventSorter) worker() {
 	defer es.wg.Done()
 	for {
@@ -456,6 +467,7 @@ func (es *eventSorter) worker() {
 	}
 }
 
+// getLogsConcurrentWithSort prepares the workers and start the processing
 func getLogsConcurrentWithSort(ctx context.Context, addresses []common.Address, eth layer1.Client, processed uint64, lastBlock uint64) ([][]types.Log, error) {
 	numworkers := utils.Max(utils.Min((utils.Max(lastBlock, processed)-utils.Min(lastBlock, processed))/4, 128), 1)
 	wc := make(chan *logWork, 3+numworkers)
