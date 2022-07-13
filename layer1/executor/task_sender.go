@@ -23,6 +23,7 @@ type TaskSender interface {
 }
 
 type SchedulerResponse struct {
+	// adds a new struct where you can listen for the task response
 	Err error
 }
 

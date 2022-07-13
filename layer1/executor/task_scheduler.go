@@ -184,6 +184,7 @@ func (s *TasksSchedulerBackend) eventLoop() {
 					}
 				} else {
 					s.logger.Tracef("received request to kill task with ID: %v", req.Id)
+					// todo: check if Id is empty
 					err := s.remove(req.Id)
 					if err != nil {
 						s.logger.WithError(err).Errorf("Failed to killTaskById %v", req.Id)
