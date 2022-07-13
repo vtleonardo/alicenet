@@ -2,7 +2,6 @@ package tests
 
 import (
 	"context"
-	"fmt"
 	"github.com/alicenet/alicenet/layer1/ethereum"
 	"github.com/alicenet/alicenet/layer1/tests"
 	"github.com/alicenet/alicenet/test/mocks"
@@ -179,7 +178,7 @@ func TestSubscribeAndWaitForTxNotFound(t *testing.T) {
 	}
 
 	hardhatEndpoint := "http://127.0.0.1:8545"
-	go tests.MineBlockWithFrequency(ctx, hardhatEndpoint, pollingTime*15)
+	tests.SetBlockInterval(hardhatEndpoint, 500)
 
 	receipt, err := watcher.SubscribeAndWait(ctx, signedTx, nil)
 	assert.NotNil(t, err)
@@ -194,9 +193,10 @@ func TestSubscribeAndWaitForStaleTx(t *testing.T) {
 	fixture, watcher := Setup(t, numAccounts, 1*time.Second)
 	eth := fixture.Client
 
-	// setting base fee to 10k GWei
 	hardhatEndpoint := "http://127.0.0.1:8545"
-	tests.SetNextBlockBaseFee(hardhatEndpoint, 6_000_000_000)
+	tests.SetBlockInterval(hardhatEndpoint, 500)
+	// setting base fee to 10k GWei
+	tests.SetNextBlockBaseFee(hardhatEndpoint, 10_000_000_000_000)
 
 	accounts := eth.GetKnownAccounts()
 	assert.Equal(t, numAccounts, len(accounts))
@@ -208,111 +208,61 @@ func TestSubscribeAndWaitForStaleTx(t *testing.T) {
 	defer cf()
 
 	amount := big.NewInt(12_345)
-	go func() {
-		miningTime := time.After(5 * time.Millisecond)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-miningTime:
-				_, err := ethereum.TransferEther(eth, fixture.Logger, owner.Address, user.Address, amount)
-				assert.Nil(t, err)
-				miningTime = time.After(20 * time.Millisecond)
-			}
-		}
-	}()
 
-	go tests.MineBlockWithFrequency(ctx, hardhatEndpoint, 1*time.Second)
-
-	<-time.After(3 * time.Second)
-
-	nonce, err := eth.GetPendingNonce(ctx, owner.Address)
+	txOpts, err := eth.GetTransactionOpts(ctx, owner)
+	txOpts.GasFeeCap = big.NewInt(1_000_000_000)
+	txOpts.Value = amount
 	assert.Nil(t, err)
-
-	gasLimit := uint64(21000)
-	baseFee, tipCap, err := eth.GetBlockBaseFeeAndSuggestedGasTip(ctx)
-	assert.Nil(t, err)
-	chainID := eth.GetChainID()
-	feeCap := new(big.Int).Mul(new(big.Int).SetInt64(30), baseFee)
-	feeCap = new(big.Int).Div(feeCap, new(big.Int).SetInt64(100))
-
-	txRough := &types.DynamicFeeTx{
-		ChainID:   chainID,
-		To:        &user.Address,
-		GasFeeCap: feeCap,
-		GasTipCap: tipCap,
-		Gas:       gasLimit,
-		Nonce:     nonce + 1,
-		Value:     amount,
-	}
-
-	signedTx, err := eth.SignTransaction(txRough, owner.Address)
-	assert.Nil(t, err)
-	err = eth.SendTransaction(ctx, signedTx)
+	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
 	assert.Nil(t, err)
 
 	subscribeOpts := &transaction.SubscribeOptions{
 		EnableAutoRetry: false,
 		MaxStaleBlocks:  3,
 	}
+	receipt, err := watcher.SubscribeAndWait(ctx, txn, subscribeOpts)
 
-	receipt, err := watcher.Subscribe(ctx, signedTx, subscribeOpts)
-	for !receipt.IsReady() {
-		<-time.After(1 * time.Second)
-	}
-
-	fmt.Printf("err - %v", err)
 	assert.NotNil(t, err)
 	assert.Nil(t, receipt)
 	_, ok := err.(*transaction.ErrTransactionStale)
 	assert.True(t, ok)
 }
 
-//func TestAutoSubscribeOfPendingTransaction(t *testing.T) {
-//	finalityDelay := uint64(6)
-//	numAccounts := 2
-//	_, _ := Setup(finalityDelay, numAccounts, common.HexToAddress("0x0b1F9c2b7bED6Db83295c7B5158E3806d67eC5bc"))
-//	assert.Nil(t, err)
-//	defer eth.Close()
-//
-//	testutils.SetBlockInterval(t, eth, 500)
-//	// setting base fee to 10k GWei
-//	testutils.SetNextBlockBaseFee(t, eth, 10_000_000_000_000)
-//
-//	accounts := eth.GetKnownAccounts()
-//	assert.Equal(t, numAccounts, len(accounts))
-//
-//	for _, acct := range accounts {
-//		err := eth.UnlockAccount(acct)
-//		assert.Nil(t, err)
-//	}
-//
-//	owner := accounts[0]
-//	user := accounts[1]
-//
-//	ctx, cf := context.WithTimeout(context.Background(), 300*time.Second)
-//	defer cf()
-//
-//	amount := big.NewInt(12_345)
-//
-//	txOpts, err := eth.GetTransactionOpts(ctx, owner)
-//	txOpts.GasFeeCap = big.NewInt(1_000_000_000)
-//	txOpts.Value = amount
-//	assert.Nil(t, err)
-//
-//	_, err = eth.Contracts().BToken().MintTo(txOpts, user.Address, big.NewInt(1))
-//	assert.Nil(t, err)
-//
-//	// logger.Infof("%v", testutils.GetPendingBlock(t, eth))
-//	// block, err := eth.GetBlockByNumber(ctx, big.NewInt(-1))
-//	// assert.Nil(t, err)
-//	// for _, txn := range block.Transactions() {
-//	// 	logger.Print(txn.Hash().Hex())
-//	// }
-//
-//	// receipt, err := watcher.SubscribeAndWait(ctx, txn)
-//	// assert.NotNil(t, err)
-//	// assert.Nil(t, receipt)
-//	// _, ok := err.(*transaction.ErrTransactionStale)
-//	// assert.True(t, ok)
-//}
+func TestSubscribeAndWaitForStaleTxWithAutoRetry(t *testing.T) {
+	numAccounts := 2
+	fixture, watcher := Setup(t, numAccounts, 1*time.Second)
+	eth := fixture.Client
+
+	hardhatEndpoint := "http://127.0.0.1:8545"
+	tests.SetBlockInterval(hardhatEndpoint, 500)
+	// setting base fee to 10k GWei
+	tests.SetNextBlockBaseFee(hardhatEndpoint, 10_000_000_000_000)
+
+	accounts := eth.GetKnownAccounts()
+	assert.Equal(t, numAccounts, len(accounts))
+
+	owner := accounts[0]
+	user := accounts[1]
+
+	ctx, cf := context.WithTimeout(context.Background(), 300*time.Second)
+	defer cf()
+
+	amount := big.NewInt(12_345)
+
+	txOpts, err := eth.GetTransactionOpts(ctx, user)
+	txOpts.GasFeeCap = big.NewInt(1_000_000_000)
+	txOpts.Value = amount
+	assert.Nil(t, err)
+	txn, err := ethereum.GetContracts().BToken().MintTo(txOpts, owner.Address, big.NewInt(1))
+	assert.Nil(t, err)
+
+	subscribeOpts := &transaction.SubscribeOptions{
+		EnableAutoRetry: true,
+		MaxStaleBlocks:  3,
+	}
+	receipt, err := watcher.SubscribeAndWait(ctx, txn, subscribeOpts)
+
+	assert.Nil(t, err)
+	assert.NotNil(t, receipt)
+	assert.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+}

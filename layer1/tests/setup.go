@@ -138,7 +138,7 @@ func FundAccounts(eth layer1.Client, watcher transaction.Watcher, logger *logrus
 			amount,
 		)
 		if err != nil {
-			return fmt.Errorf("failed to fund account: %v", account.Address.Hex())
+			return fmt.Errorf("failed to fund account: %v with error: %v", account.Address.Hex(), err)
 		}
 		rcptResponse, err := watcher.Subscribe(context.Background(), txn, nil)
 		if err != nil {
