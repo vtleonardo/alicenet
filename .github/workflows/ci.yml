@@ -125,12 +125,12 @@ jobs:
                 os: [ ubuntu-20.04 ]
         steps:
             - uses: actions/checkout@v3
-            - uses: actions/setup-go@v3
             - uses: ./.github/actions/alicenet-config
             - name: Set up gotestfmt
               run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
             - name: install abigen
               run: |
+                  export GOPATH=$(go env GOPATH)/bin
                   go get -u github.com/ethereum/go-ethereum
                   cd $GOPATH/src/github.com/ethereum/go-ethereum/
                   make
