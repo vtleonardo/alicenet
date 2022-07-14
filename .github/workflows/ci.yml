@@ -1,38 +1,175 @@
 name: Alicenet CI
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    workflow_dispatch:
+    push:
+        branches: [ main ]
+    pull_request:
+        branches: [ main ]
+
+env:
+    NODE_VERSION: 16.x
 
 concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: true
+    group: ${{ github.ref }}
+    cancel-in-progress: true
 
 defaults:
-  run:
-    shell: bash
+    run:
+        shell: bash
 
 jobs:
-  go-integration-tests:
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ ubuntu-20.04 ]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: ./.github/actions/alicenet-config
-      - name: Build Alicenet
-        run: go build ./...
-      - name: Set up gotestfmt
-        run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
-      - name: Run tests
-        run: |
-              set -euo pipefail
-              go test -tags=integration_race -timeout=30m github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests
-#              go test -tags=integration_race -race -timeout=30m -json -timeout=30m github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests 2>&1 | tee /tmp/gotest.log | gotestfmt
+#    solidity-build:
+#        runs-on: ubuntu-20.04
+#        timeout-minutes: 10
+#        defaults:
+#            run:
+#                working-directory: ./bridge
+#        steps:
+#            - uses: actions/checkout@v3
+#            - uses: ./.github/actions/node-cache
+#
+#    solidity-unit-tests:
+#        runs-on: ubuntu-20.04
+#        timeout-minutes: 15
+#        strategy:
+#            matrix:
+#                include:
+#                    - test-group: "[0-9a-dA-D]"
+#                    - test-group: "[eE]"
+#                      sub-filter-exclude: "ethdkg/phases"
+#                    - test-group: "ethdkg"
+#                      sub-filter-include: "phases"
+#                      sub-filter-exclude: "accusations"
+#                    - test-group: "ethdkg"
+#                      sub-filter-include: "phases/accusations"
+#                    - test-group: "[f-qF-Q]"
+#                    - test-group: "[r-sR-S]"
+#                    - test-group: "[t-zT-Z]"
+#        needs: solidity-build
+#        defaults:
+#            run:
+#                working-directory: ./bridge
+#        steps:
+#            - uses: actions/checkout@v3
+#            - uses: ./.github/actions/node-cache
+#            - uses: ./.github/actions/solidity-tests
+#              with:
+#                  test-group: ${{ matrix.test-group }}
+#                  sub-filter-include: ${{ matrix.sub-filter-include }}
+#                  sub-filter-exclude: ${{ matrix.sub-filter-exclude }}
+#
+    solidity-linter:
+        runs-on: ubuntu-20.04
+        timeout-minutes: 10
+        needs: solidity-build
+        defaults:
+            run:
+                working-directory: ./bridge
+        steps:
+            - uses: actions/checkout@v3
+            - uses: ./.github/actions/node-cache
+            - run: npm run lint-solidity
 
+    typescript-linter:
+        runs-on: ubuntu-20.04
+        timeout-minutes: 10
+        needs: solidity-build
+        defaults:
+            run:
+                working-directory: ./bridge
+                shell: bash
+        steps:
+            - uses: actions/checkout@v3
+            - uses: ./.github/actions/node-cache
+            - run: npm run clean && npm run compile && npm run typechain
+            - run: npm run lint
+
+    golang-linter:
+        runs-on: ubuntu-20.04
+        timeout-minutes: 10
+        continue-on-error: true
+        steps:
+            - uses: actions/checkout@v3
+            - uses: ./.github/actions/alicenet-config
+            - uses: golangci/golangci-lint-action@v3
+
+    golang-unit-tests:
+        runs-on: ${{ matrix.os }}
+        strategy:
+            matrix:
+                os: [ ubuntu-20.04 ]
+        steps:
+            - uses: actions/checkout@v3
+            - uses: ./.github/actions/alicenet-config
+            - run: go build ./...
+            - name: Set up gotestfmt
+              run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
+#            - name: Run unit tests
+#              timeout-minutes: 20
+#              run: |
+#                  set -euo pipefail
+#                  go test -race -json -covermode=atomic -coverprofile=coverage.out ./... 2>&1 | tee /tmp/gotest.log | gotestfmt
+#            - uses: codecov/codecov-action@v3
+#              with:
+#                  files: ./coverage.out
+#                  verbose: true
+
+    golang-blockchain-tests:
+        runs-on: ${{ matrix.os }}
+        needs: golang-unit-tests
+        timeout-minutes: 60
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ ubuntu-20.04 ]
+        steps:
+            - uses: actions/checkout@v3
+            - uses: ./.github/actions/alicenet-config
+            - name: Set up gotestfmt
+              run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
+            - name: Run tests ${{ matrix.test-cmd }}
+              timeout-minutes: 45
+              run: |
+                  set -euo pipefail
+                  ./scripts/main.sh init 5
+                  go test -tags=integration_race -timeout=30m github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests
+
+#name: Alicenet CI
+#
+#on:
+#  workflow_dispatch:
+#  push:
+#    branches: [ main ]
+#  pull_request:
+#    branches: [ main ]
+#
+#concurrency:
+#  group: ${{ github.ref }}
+#  cancel-in-progress: true
+#
+#defaults:
+#  run:
+#    shell: bash
+#
+#jobs:
+#  go-integration-tests:
+#    runs-on: ${{ matrix.os }}
+#    timeout-minutes: 60
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        os: [ ubuntu-20.04 ]
+#    steps:
+#      - uses: actions/checkout@v3
+#      - uses: ./.github/actions/alicenet-config
+#      - name: Build Alicenet
+#        run: go build ./...
+#      - name: Set up gotestfmt
+#        run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
+#      - name: Run tests
+#        run: |
+#              set -euo pipefail
+#              go test -tags=integration_race -timeout=30m github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests
+##              go test -tags=integration_race -race -timeout=30m -json -timeout=30m github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests 2>&1 | tee /tmp/gotest.log | gotestfmt
+#

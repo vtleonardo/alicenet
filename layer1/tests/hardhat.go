@@ -49,8 +49,8 @@ func GetProjectRootPath() string {
 	return sanitizePathFromOutput(stdout)
 }
 
-// GetHardhatPackagePath return the bridge folder path
-func GetHardhatPackagePath() string {
+// GetHardhatPath return the bridge folder path
+func GetHardhatPath() string {
 	rootPath := GetProjectRootPath()
 	bridgePath := filepath.Join(rootPath, SmartContractsRelativeFolder)
 
@@ -178,13 +178,13 @@ func StartHardHatNode(hostname string, port string) (*Hardhat, error) {
 	}
 	fullUrl := fmt.Sprintf("http://%s:%s", sanitizedHostname, sanitizedPort)
 
-	hardhatTempDir, err := os.MkdirTemp("", "hardhattempdir")
+	workingTempDir, err := os.MkdirTemp("", "hardhattempdir")
 	if err != nil {
 		panic(fmt.Errorf("failed to create tmp dir for hardhat: %v", err))
 	}
 
-	hardhatPath := GetHardhatPackagePath()
-	configPath := GenerateHardhatConfig(hardhatTempDir, hardhatPath, fullUrl)
+	hardhatPath := GetHardhatPath()
+	configPath := GenerateHardhatConfig(workingTempDir, hardhatPath, fullUrl)
 	hardBinPath := filepath.Join(hardhatPath, "node_modules", ".bin", "hardhat")
 
 	cmd := exec.Command(
@@ -199,7 +199,7 @@ func StartHardHatNode(hostname string, port string) (*Hardhat, error) {
 		"--port",
 		sanitizedPort,
 	)
-	cmd.Dir = GetHardhatPackagePath()
+	cmd.Dir = GetHardhatPath()
 
 	// setCommandStdOut(cmd)
 	err = cmd.Start()
@@ -304,7 +304,7 @@ func (h *Hardhat) IsHardHatRunning() (bool, error) {
 }
 
 func (h *Hardhat) DeployFactoryAndContracts(tmpDir string, baseFilesDir string) (string, error) {
-	modulesDir := GetHardhatPackagePath()
+	modulesDir := GetHardhatPath()
 	output, err := executeCommand(
 		modulesDir,
 		"npx",
@@ -339,7 +339,7 @@ func (h *Hardhat) DeployFactoryAndContracts(tmpDir string, baseFilesDir string) 
 }
 
 func (h *Hardhat) RegisterValidators(factoryAddress string, validators []string) error {
-	nodeDir := GetHardhatPackagePath()
+	nodeDir := GetHardhatPath()
 	// Register validator
 	_, err := executeCommand(
 		nodeDir,
