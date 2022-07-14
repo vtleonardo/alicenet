@@ -130,8 +130,9 @@ jobs:
               run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
             - name: install abigen
               run: |
-                  go get -u github.com/ethereum/go-ethereum
-                  ls -la /home/runner/go
+                  /usr/local/bin/abigen
+#                  go get -u github.com/ethereum/go-ethereum
+#                  ls -la /home/runner/go
 #                  cd /home/runner/go/src/github.com/ethereum/go-ethereum/
 #                  make
 #                  make devtools
