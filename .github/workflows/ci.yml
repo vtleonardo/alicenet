@@ -19,15 +19,15 @@ defaults:
         shell: bash
 
 jobs:
-#    solidity-build:
-#        runs-on: ubuntu-20.04
-#        timeout-minutes: 10
-#        defaults:
-#            run:
-#                working-directory: ./bridge
-#        steps:
-#            - uses: actions/checkout@v3
-#            - uses: ./.github/actions/node-cache
+    solidity-build:
+        runs-on: ubuntu-20.04
+        timeout-minutes: 10
+        defaults:
+            run:
+                working-directory: ./bridge
+        steps:
+            - uses: actions/checkout@v3
+            - uses: ./.github/actions/node-cache
 #
 #    solidity-unit-tests:
 #        runs-on: ubuntu-20.04
