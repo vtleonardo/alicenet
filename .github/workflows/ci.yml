@@ -16,27 +16,6 @@ defaults:
     shell: bash
 
 jobs:
-  go-unit-tests:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ ubuntu-20.04 ]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: ./.github/actions/alicenet-config
-      - run: go build ./...
-      - name: Set up gotestfmt
-        run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
-      - name: Run unit tests
-        timeout-minutes: 20
-        run: |
-          set -euo pipefail
-          go test -race -json -covermode=atomic -coverprofile=coverage.out ./... 2>&1 | tee /tmp/gotest.log | gotestfmt
-      - uses: codecov/codecov-action@v3
-        with:
-          files: ./coverage.out
-          verbose: true
-
   go-integration-tests:
     runs-on: ${{ matrix.os }}
     needs: go-unit-tests
@@ -48,6 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/alicenet-config
+      - name: Build Alicenet
+        run: go build ./...
       - name: Set up gotestfmt
         run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
       - name: Run tests
