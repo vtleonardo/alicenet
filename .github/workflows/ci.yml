@@ -131,7 +131,7 @@ jobs:
             - name: install abigen
               run: |
                   go get -u github.com/ethereum/go-ethereum
-                  cd /home/runner/go/src/src/github.com/ethereum/go-ethereum/
+                  cd /home/runner/go/src/github.com/ethereum/go-ethereum/
                   make
                   make devtools
                   cd -
