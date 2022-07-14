@@ -131,10 +131,11 @@ jobs:
             - name: install abigen
               run: |
                   go get -u github.com/ethereum/go-ethereum
-                  cd /home/runner/go/src/github.com/ethereum/go-ethereum/
-                  make
-                  make devtools
-                  cd -
+                  ls -la /home/runner/go
+#                  cd /home/runner/go/src/github.com/ethereum/go-ethereum/
+#                  make
+#                  make devtools
+#                  cd -
             - name: install dependencies
               run: cd bridge && npm ci && npm run compile && npm run generate && cd -
             - name: Run tests ${{ matrix.test-cmd }}
