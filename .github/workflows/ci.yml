@@ -52,7 +52,5 @@ jobs:
         run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
       - name: Run tests
         run: |
-          set -euo pipefail
-#          ./scripts/main.sh init 5
-#          go test -tags=integration -race -json -timeout=30m ${{ matrix.test-cmd }} 2>&1 | tee /tmp/gotest.log | gotestfmt
-          go test -tags=integration_race -race -json -timeout=30m github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests 2>&1 | tee /tmp/gotest.log | gotestfmt
+              set -euo pipefail
+              go test -tags=integration_race -race -json -timeout=30m github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests 2>&1 | tee /tmp/gotest.log | gotestfmt
