@@ -187,6 +187,7 @@ func StartHardHatNode(hostname string, port string) (*Hardhat, error) {
 	configPath := GenerateHardhatConfig(workingTempDir, hardhatPath, fullUrl)
 	hardBinPath := filepath.Join(hardhatPath, "node_modules", ".bin", "hardhat")
 
+	// Start HH node
 	cmd := exec.Command(
 		"node",
 		hardBinPath,
@@ -200,10 +201,7 @@ func StartHardHatNode(hostname string, port string) (*Hardhat, error) {
 		sanitizedPort,
 	)
 	cmd.Dir = GetHardhatPath()
-
-	// setCommandStdOut(cmd)
 	err = cmd.Start()
-	// if there is an error with our execution handle it here
 	if err != nil {
 		return nil, fmt.Errorf("could not run hardhat node: %s", err)
 	}
@@ -370,6 +368,7 @@ func SendCommandViaRPC(url string, command string, params ...interface{}) error 
 		Method:  command,
 		Params:  make([]byte, 0),
 	}
+	logger := logging.GetLogger("test")
 
 	paramsJson, err := json.Marshal(params)
 	if err != nil {
@@ -394,11 +393,13 @@ func SendCommandViaRPC(url string, command string, params ...interface{}) error 
 	)
 
 	if err != nil {
+		logger.Tracef("Error sending hardhat command through RPC: %v", err)
 		return err
 	}
 
 	_, err = io.ReadAll(resp.Body)
 	if err != nil {
+		logger.Tracef("Error Reading HardHat response body: %v", err)
 		return err
 	}
 	return nil
