@@ -1,4 +1,4 @@
-//go:build integration_race
+//go:build integration
 
 package tests
 
