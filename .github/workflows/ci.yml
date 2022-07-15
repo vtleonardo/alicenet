@@ -94,17 +94,17 @@ jobs:
             - uses: ./.github/actions/alicenet-config
             - uses: golangci/golangci-lint-action@v3
 
-#    golang-unit-tests:
-#        runs-on: ${{ matrix.os }}
-#        strategy:
-#            matrix:
-#                os: [ ubuntu-20.04 ]
-#        steps:
-#            - uses: actions/checkout@v3
-#            - uses: ./.github/actions/alicenet-config
-#            - run: go build ./...
-#            - name: Set up gotestfmt
-#              run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
+    golang-unit-tests:
+        runs-on: ${{ matrix.os }}
+        strategy:
+            matrix:
+                os: [ ubuntu-20.04 ]
+        steps:
+            - uses: actions/checkout@v3
+            - uses: ./.github/actions/alicenet-config
+            - run: go build ./...
+            - name: Set up gotestfmt
+              run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
 #            - name: Run unit tests
 #              timeout-minutes: 20
 #              run: |
@@ -117,7 +117,7 @@ jobs:
 
     golang-level1-tests:
         runs-on: ${{ matrix.os }}
-#        needs: golang-unit-tests
+        needs: golang-unit-tests
         timeout-minutes: 60
         strategy:
             fail-fast: false
