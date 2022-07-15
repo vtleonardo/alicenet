@@ -94,17 +94,17 @@ jobs:
             - uses: ./.github/actions/alicenet-config
             - uses: golangci/golangci-lint-action@v3
 
-    golang-unit-tests:
-        runs-on: ${{ matrix.os }}
-        strategy:
-            matrix:
-                os: [ ubuntu-20.04 ]
-        steps:
-            - uses: actions/checkout@v3
-            - uses: ./.github/actions/alicenet-config
-            - run: go build ./...
-            - name: Set up gotestfmt
-              run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
+#    golang-unit-tests:
+#        runs-on: ${{ matrix.os }}
+#        strategy:
+#            matrix:
+#                os: [ ubuntu-20.04 ]
+#        steps:
+#            - uses: actions/checkout@v3
+#            - uses: ./.github/actions/alicenet-config
+#            - run: go build ./...
+#            - name: Set up gotestfmt
+#              run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
 #            - name: Run unit tests
 #              timeout-minutes: 20
 #              run: |
@@ -117,57 +117,44 @@ jobs:
 
     golang-level1-tests:
         runs-on: ${{ matrix.os }}
-        needs: golang-unit-tests
         timeout-minutes: 60
         strategy:
             fail-fast: false
             matrix:
                 os: [ ubuntu-20.04 ]
+                test-cmd: [
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestShareDistribution_Group_1,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestShareDistribution_Group_2,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestShareDistribution_Group_3,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestRegisterTask_Group_1,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestRegisterTask_Group_2,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestRegisterTask_Group_3,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestMPKSubmission_Group_1,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestMPKSubmission_Group_2,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestKeyShareSubmission,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestGPKjSubmission_Group_1,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestGPKjSubmission_Group_2,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestDisputeShareDistributionTask_Group_1,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestDisputeShareDistributionTask_Group_2,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestDisputeMissingShareDistributionTask_Group_1,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestDisputeMissingShareDistributionTask_Group_2,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestDisputeMissingRegistrationTask_Group_1,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestDisputeMissingRegistrationTask_Group_2,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestDisputeMissingKeySharesTask,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestDisputeMissingGPKjTask_Group_1,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestDisputeMissingGPKjTask_Group_2,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestGPKjDispute,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestCompletion_Group_1,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestCompletion_Group_2,
+                   github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests -run TestCompletion_Group_3,
+                ]
         steps:
             - uses: actions/checkout@v3
             - uses: ./.github/actions/alicenet-config
+            - run: go build ./...
             - name: Set up gotestfmt
               run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
             - name: Run tests ${{ matrix.test-cmd }}
               timeout-minutes: 45
               run: |
-                  go test -tags=integration_race -timeout=30m github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests
-
-#name: Alicenet CI
-#
-#on:
-#  workflow_dispatch:
-#  push:
-#    branches: [ main ]
-#  pull_request:
-#    branches: [ main ]
-#
-#concurrency:
-#  group: ${{ github.ref }}
-#  cancel-in-progress: true
-#
-#defaults:
-#  run:
-#    shell: bash
-#
-#jobs:
-#  go-integration-tests:
-#    runs-on: ${{ matrix.os }}
-#    timeout-minutes: 60
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        os: [ ubuntu-20.04 ]
-#    steps:
-#      - uses: actions/checkout@v3
-#      - uses: ./.github/actions/alicenet-config
-#      - name: Build Alicenet
-#        run: go build ./...
-#      - name: Set up gotestfmt
-#        run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
-#      - name: Run tests
-#        run: |
-#              set -euo pipefail
-#              go test -tags=integration_race -timeout=30m github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests
-##              go test -tags=integration_race -race -timeout=30m -json -timeout=30m github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests 2>&1 | tee /tmp/gotest.log | gotestfmt
-#
+                  go test -tags=integration -json -timeout=30m ${{ matrix.test-cmd }} 2>&1 | tee /tmp/gotest.log | gotestfmt
