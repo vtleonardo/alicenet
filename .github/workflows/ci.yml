@@ -117,7 +117,7 @@ jobs:
 
     golang-level1-tests:
         runs-on: ${{ matrix.os }}
-        needs: golang-unit-tests
+#        needs: golang-unit-tests
         timeout-minutes: 60
         strategy:
             fail-fast: false
