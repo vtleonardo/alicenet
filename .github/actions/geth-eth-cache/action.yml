@@ -12,6 +12,7 @@ runs:
         path: |
           /usr/local/bin/geth
           /usr/local/bin/ethkey
+          /usr/local/bin
         key: ${{ runner.os }}-geth-ethkey
     - name: Check out ethereum repo for ethkey
       if: steps.geth-eth-cache.outputs.cache-hit != 'true'
@@ -23,6 +24,7 @@ runs:
       if: steps.geth-eth-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
+          echo "====================== DOWNLOAD CACHE geth ethkey"
           REPO_PATH=$(pwd)
           cd go-ethereum
           sudo apt install make gcc
