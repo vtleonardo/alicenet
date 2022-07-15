@@ -128,11 +128,11 @@ jobs:
             - uses: ./.github/actions/alicenet-config
             - name: Set up gotestfmt
               run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
-            - name: install abigen
-              run: |
-                  /usr/local/bin/abigen
+#            - name: install abigen
+#              run: |
+#                  /usr/local/bin/abigen
 #                  go get -u github.com/ethereum/go-ethereum
-#                  ls -la /home/runner/go
+#                  ls -la /home/runner/go/bin
 #                  cd /home/runner/go/src/github.com/ethereum/go-ethereum/
 #                  make
 #                  make devtools
