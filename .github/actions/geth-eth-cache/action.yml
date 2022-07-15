@@ -13,13 +13,16 @@ runs:
           /usr/local/bin/geth
           /usr/local/bin/ethkey
           /usr/local/bin
-        key: ${{ runner.os }}-geth-ethkey
+        key: ${{ runner.os }}-geth-ethkey-${{ hashFiles('./go.mod') }}
     - name: Check out ethereum repo for ethkey
       if: steps.geth-eth-cache.outputs.cache-hit != 'true'
       uses: actions/checkout@master
       with:
          repository: ethereum/go-ethereum
          path: './go-ethereum'
+    - name: Set up ifacemask
+      shell: bash
+      run: go install github.com/vburenin/ifacemaker@latest
     - name: Install geth and ethkey
       if: steps.geth-eth-cache.outputs.cache-hit != 'true'
       shell: bash
