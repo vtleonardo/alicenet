@@ -12,8 +12,8 @@ runs:
         path: |
           /usr/local/bin/geth
           /usr/local/bin/ethkey
-          /usr/local/bin
-        key: ${{ runner.os }}-geth-ethkey-${{ hashFiles('./go.mod') }}
+          /usr/local/bin/abigen
+        key: ${{ runner.os }}-geth-ethkey
     - name: Check out ethereum repo for ethkey
       if: steps.geth-eth-cache.outputs.cache-hit != 'true'
       uses: actions/checkout@master

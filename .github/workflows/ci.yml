@@ -128,8 +128,6 @@ jobs:
             - uses: ./.github/actions/alicenet-config
             - name: Set up gotestfmt
               run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
-#            - name: install dependencies
-#              run: cd bridge && npm ci && npm run compile && npm run generate && cd -
             - name: Run tests ${{ matrix.test-cmd }}
               timeout-minutes: 45
               run: |
