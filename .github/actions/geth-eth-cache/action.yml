@@ -14,13 +14,13 @@ runs:
           /usr/local/bin/ethkey
         key: ${{ runner.os }}-geth-ethkey
     - name: Check out ethereum repo for ethkey
-#      if: steps.geth-eth-cache.outputs.cache-hit != 'true'
+      if: steps.geth-eth-cache.outputs.cache-hit != 'true'
       uses: actions/checkout@master
       with:
          repository: ethereum/go-ethereum
          path: './go-ethereum'
     - name: Install geth and ethkey
-#      if: steps.geth-eth-cache.outputs.cache-hit != 'true'
+      if: steps.geth-eth-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
           REPO_PATH=$(pwd)

@@ -105,17 +105,17 @@ jobs:
             - run: go build ./...
             - name: Set up gotestfmt
               run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
-#            - name: Run unit tests
-#              timeout-minutes: 20
-#              run: |
-#                  set -euo pipefail
-#                  go test -race -json -covermode=atomic -coverprofile=coverage.out ./... 2>&1 | tee /tmp/gotest.log | gotestfmt
-#            - uses: codecov/codecov-action@v3
-#              with:
-#                  files: ./coverage.out
-#                  verbose: true
+            - name: Run unit tests
+              timeout-minutes: 20
+              run: |
+                  set -euo pipefail
+                  go test -race -json -covermode=atomic -coverprofile=coverage.out ./... 2>&1 | tee /tmp/gotest.log | gotestfmt
+            - uses: codecov/codecov-action@v3
+              with:
+                  files: ./coverage.out
+                  verbose: true
 
-    golang-blockchain-tests:
+    golang-level1-tests:
         runs-on: ${{ matrix.os }}
         needs: golang-unit-tests
         timeout-minutes: 60
@@ -130,8 +130,8 @@ jobs:
               run: go install github.com/haveyoudebuggedit/gotestfmt/v2/cmd/gotestfmt@latest
             - name: Set up ifacemask
               run: go install github.com/vburenin/ifacemaker@latest
-            - name: install dependencies
-              run: cd bridge && npm ci && npm run compile && npm run generate && cd -
+#            - name: install dependencies
+#              run: cd bridge && npm ci && npm run compile && npm run generate && cd -
             - name: Run tests ${{ matrix.test-cmd }}
               timeout-minutes: 45
               run: |
