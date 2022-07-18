@@ -214,7 +214,6 @@ task("deployContracts", "runs the initial deployment of all AliceNet contracts")
   )
   .addOptionalParam("outputFolder", "output folder path to save factory state")
   .setAction(async (taskArgs, hre) => {
-    console.log("================ 1");
     let cumulativeGasUsed = BigNumber.from("0");
     await checkUserDirPath(taskArgs.outputFolder);
     // setting listName undefined will use the default list
@@ -222,21 +221,18 @@ task("deployContracts", "runs the initial deployment of all AliceNet contracts")
     // deploy the factory first
     let factoryAddress = taskArgs.factoryAddress;
     if (factoryAddress === undefined) {
-      console.log("================ 2");
       const factoryData: FactoryData = await hre.run("deployFactory", {
         outputFolder: taskArgs.outputFolder,
       });
       factoryAddress = factoryData.address;
       cumulativeGasUsed = cumulativeGasUsed.add(factoryData.gas);
     }
-    console.log("================ 3");
     let deployArgs: DeployArgs;
     // get an array of all contracts in the artifacts
     const contracts = await getDeploymentList(taskArgs.inputFolder);
     let metaContractData: MetaContractData;
     let proxyData: ProxyData;
     // let contracts = ["src/tokens/periphery/validatorPool/Snapshots.sol:Snapshots"]
-    console.log("================ 4");
     for (let i = 0; i < contracts.length; i++) {
       const fullyQualifiedName = contracts[i];
       // check the contract for the @custom:deploy-type tag

@@ -27,7 +27,6 @@ runs:
       if: steps.geth-eth-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
-          echo "====================== DOWNLOAD CACHE geth ethkey"
           REPO_PATH=$(pwd)
           cd go-ethereum
           sudo apt install make gcc

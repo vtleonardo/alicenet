@@ -25,7 +25,6 @@ runs:
       shell: bash
       if: steps.cache-nodemodules.outputs.cache-hit != 'true'
       run: |          
-        echo "====================== DOWNLOAD CACHE npm cache"
         npm ci 
         npm run compile 
         npm run generate 

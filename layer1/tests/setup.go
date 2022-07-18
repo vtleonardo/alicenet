@@ -241,7 +241,6 @@ func NewClientFixture(hardhat *Hardhat, finalityDelay uint64, numAccounts int, l
 
 func (c *ClientFixture) Close() {
 	c.Watcher.Close()
-	//ResetHardhatConfigs(c.Client.GetEndpoint())
 	c.Client.Close()
 	c.MonitorDb.DB().Close()
 	os.RemoveAll(c.TempDir)
