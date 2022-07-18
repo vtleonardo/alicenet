@@ -9,7 +9,7 @@ on:
 
 env:
     NODE_VERSION: 16.x
-    INTEGRATION_TESTS_PATH: github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests
+    DKG_TESTS_PATH: github.com/alicenet/alicenet/layer1/executor/tasks/dkg/tests
 
 concurrency:
     group: ${{ github.ref }}
@@ -110,13 +110,13 @@ jobs:
               timeout-minutes: 20
               run: |
                   set -euo pipefail
-                  go test -json -covermode=atomic -coverprofile=coverage.out `go list ./... | grep -v $INTEGRATION_TESTS_PATH` 2>&1 | tee /tmp/gotest.log | gotestfmt
+                  go test -json -timeout=20m -covermode=atomic -coverprofile=coverage.out `go list ./... | grep -v $DKG_TESTS_PATH` 2>&1 | tee /tmp/gotest.log | gotestfmt
             - uses: codecov/codecov-action@v3
               with:
                   files: ./coverage.out
                   verbose: true
 
-    golang-level1-tests:
+    golang-dkg-tests:
         runs-on: ${{ matrix.os }}
         timeout-minutes: 60
         strategy:
@@ -158,4 +158,4 @@ jobs:
             - name: Run tests ${{ matrix.test-groups }}
               timeout-minutes: 20
               run: |
-                  go test -tags=integration -json -timeout=30m $INTEGRATION_TESTS_PATH -run ${{ matrix.test-groups }} 2>&1 | tee /tmp/gotest.log | gotestfmt
+                  go test -tags=integration -json -timeout=15m $DKG_TESTS_PATH -run ${{ matrix.test-groups }} 2>&1 | tee /tmp/gotest.log | gotestfmt
