@@ -70,6 +70,15 @@ func GetPublicStakingEvents() map[string]abi.Event {
 	return publicStakingABI.Events
 }
 
+func GetDynamicsEvents() map[string]abi.Event {
+	snapshotsABI, err := abi.JSON(strings.NewReader(bindings.DynamicsMetaData.ABI))
+	if err != nil {
+		panic(err)
+	}
+
+	return snapshotsABI.Events
+}
+
 func RegisterETHDKGEvents(em *objects.EventMap, monDB *db.Database, adminHandler monInterfaces.AdminHandler, taskRequestChan chan<- tasks.TaskRequest) {
 	ethDkgEvents := GetETHDKGEvents()
 
@@ -219,6 +228,19 @@ func SetupEventMap(em *objects.EventMap, cdb, monDB *db.Database, adminHandler m
 	}
 	if err := em.Register(validatorMajorSlashedEvent.ID.String(), validatorMajorSlashedEvent.Name, processValidatorMajorSlashedFunc); err != nil {
 		panic(err)
+	}
+
+	dynamicsEvents := GetDynamicsEvents()
+	newAliceNetNodeVersionAvailableEvent, ok := dynamicsEvents["NewAliceNetNodeVersionAvailable"]
+	if !ok {
+		panic("could not find event Dynamics.NewAliceNetNodeVersionAvailable")
+	}
+
+	if err := em.Register(newAliceNetNodeVersionAvailableEvent.ID.String(), newAliceNetNodeVersionAvailableEvent.Name,
+		func(eth layer1.Client, contracts layer1.AllSmartContracts, logger *logrus.Entry, state *objects.MonitorState, log types.Log) error {
+			return ProcessNewAliceNetNodeVersionAvailable(eth, contracts, logger, log, state, taskRequestChan, monDB)
+		}); err != nil {
+		return err
 	}
 
 	return nil
