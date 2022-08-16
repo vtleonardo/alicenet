@@ -187,6 +187,22 @@ func validatorNode(cmd *cobra.Command, args []string) {
 	eth, contractsHandler, secp256k1Signer, publicKey := initEthereumConnection(logger)
 	defer eth.Close()
 
+	callOpts, err := eth.GetCallOpts(context.Background(), eth.GetDefaultAccount())
+	if err != nil {
+		logger.Errorf("Received and error during GetCallOpts: %v", err)
+	}
+	lastVersion, err := contractsHandler.EthereumContracts().Dynamics().GetLatestAliceNetVersion(callOpts)
+	if err != nil {
+		logger.Errorf("Received and error during GetLatestAliceNetVersion: %v", err)
+	}
+
+	if newMajorIsGreater, _, _, localVersion := mnutils.CompareCanonicalVersion(lastVersion); newMajorIsGreater {
+		//todo: check the epoch!!!
+		logger.Errorf("CRITICAL: your Major Canonical Node Version %d.%d.%d is lower than the latest %d.%d.%d. Please update your node before restart. Exiting!",
+			localVersion.Major, localVersion.Minor, localVersion.Patch, lastVersion.Major, lastVersion.Minor, lastVersion.Patch)
+		return
+	}
+
 	// Initialize consensus db: stores all state the consensus mechanism requires to work
 	rawConsensusDb := initDatabase(nodeCtx, config.Configuration.Chain.StateDbPath, config.Configuration.Chain.StateDbInMemory)
 	defer rawConsensusDb.Close()
@@ -356,6 +372,7 @@ func validatorNode(cmd *cobra.Command, args []string) {
 	select {
 	case <-peerManager.CloseChan():
 	case <-consSync.CloseChan():
+	case <-mon.CloseChan():
 	case <-signals:
 	}
 	go countSignals(logger, 5, signals)

@@ -2,9 +2,12 @@ package dynamics
 
 import (
 	"context"
+	"fmt"
 	"github.com/alicenet/alicenet/bridge/bindings"
+	"github.com/alicenet/alicenet/utils"
 	"github.com/ethereum/go-ethereum/core/types"
 	"math/big"
+	"time"
 
 	"github.com/alicenet/alicenet/layer1/executor/tasks"
 )
@@ -16,6 +19,8 @@ type CanonicalVersionCheckTask struct {
 	MaxUpdateEpoch *big.Int
 	Version        bindings.CanonicalVersion
 }
+
+const messageFrequency = 1 * time.Second
 
 // asserting that CanonicalVersionCheckTask struct implements interface tasks.Task.
 var _ tasks.Task = &CanonicalVersionCheckTask{}
@@ -34,6 +39,8 @@ func (t *CanonicalVersionCheckTask) Prepare(ctx context.Context) *tasks.TaskErr 
 	logger := t.GetLogger().WithField("method", "Prepare()")
 	logger.Debug("preparing task")
 
+	logger.Infof("Received a new %d.%d.%d Canonical Node Version to be analized", t.Version.Major, t.Version.Minor, t.Version.Patch)
+
 	return nil
 }
 
@@ -42,7 +49,34 @@ func (t *CanonicalVersionCheckTask) Execute(ctx context.Context) (*types.Transac
 	logger := t.GetLogger().WithField("method", "Execute()")
 	logger.Debug("initiate execution")
 
-	//todo: get local version, log a message depending on the patch severity
+	newMajorIsGreater, newMinorIsGreater, newPatchIsGreater, localVersion := utils.CompareCanonicalVersion(t.Version)
+	text := ""
+
+	if newMajorIsGreater {
+		text = fmt.Sprintf("CRITICAL: your Major Canonical Node Version %d.%d.%d is lower than the latest %d.%d.%d. Please update your node, otherwise it will be killed on epoch %d.",
+			localVersion.Major, localVersion.Minor, localVersion.Patch, t.Version.Major, t.Version.Minor, t.Version.Patch, t.MaxUpdateEpoch.Uint64())
+	} else if newMinorIsGreater {
+		text = fmt.Sprintf("WARNING: your Minor Canonical Node Version %d.%d.%d is lower than the latest %d.%d.%d. Please update your node.",
+			localVersion.Major, localVersion.Minor, localVersion.Patch, t.Version.Major, t.Version.Minor, t.Version.Patch)
+	} else if newPatchIsGreater {
+		text = fmt.Sprintf("WARNING: your Patch Canonical Node Version %d.%d.%d is lower than the latest %d.%d.%d. Please update your node.",
+			localVersion.Major, localVersion.Minor, localVersion.Patch, t.Version.Major, t.Version.Minor, t.Version.Patch)
+	}
+
+	for {
+		printingTime := time.After(messageFrequency)
+		select {
+		case <-ctx.Done():
+			return nil, tasks.NewTaskErr(ctx.Err().Error(), false)
+		case <-printingTime:
+			if shouldPrint, _ := t.ShouldExecute(ctx); shouldPrint {
+				logger.Info(text)
+				printingTime = time.After(messageFrequency)
+				continue
+			}
+			return nil, nil
+		}
+	}
 
 	return nil, nil
 }
@@ -52,7 +86,9 @@ func (t *CanonicalVersionCheckTask) ShouldExecute(ctx context.Context) (bool, *t
 	logger := t.GetLogger().WithField("method", "ShouldExecute()")
 	logger.Debug("should execute task")
 
-	//todo: get local version, compare to the event version and respond
+	if newMajorIsGreater, newMinorIsGreater, newPatchIsGreater, _ := utils.CompareCanonicalVersion(t.Version); newMajorIsGreater || newMinorIsGreater || newPatchIsGreater {
+		return true, nil
+	}
 
-	return true, nil
+	return false, nil
 }

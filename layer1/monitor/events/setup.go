@@ -238,7 +238,7 @@ func SetupEventMap(em *objects.EventMap, cdb, monDB *db.Database, adminHandler m
 
 	if err := em.Register(newAliceNetNodeVersionAvailableEvent.ID.String(), newAliceNetNodeVersionAvailableEvent.Name,
 		func(eth layer1.Client, contracts layer1.AllSmartContracts, logger *logrus.Entry, state *objects.MonitorState, log types.Log) error {
-			return ProcessNewAliceNetNodeVersionAvailable(eth, contracts, logger, log, state, taskRequestChan, monDB)
+			return ProcessNewAliceNetNodeVersionAvailable(contracts, logger, log, state, taskRequestChan)
 		}); err != nil {
 		return err
 	}

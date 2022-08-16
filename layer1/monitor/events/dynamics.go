@@ -5,6 +5,7 @@ import (
 	"github.com/alicenet/alicenet/layer1/executor/tasks"
 	"github.com/alicenet/alicenet/layer1/executor/tasks/dynamics"
 	"github.com/alicenet/alicenet/layer1/monitor/objects"
+	"github.com/alicenet/alicenet/utils"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/sirupsen/logrus"
@@ -34,7 +35,7 @@ func ProcessValueUpdated(eth layer1.Client, contracts layer1.AllSmartContracts, 
 	return nil
 }
 
-func ProcessNewAliceNetNodeVersionAvailable(eth layer1.Client, contracts layer1.AllSmartContracts, logger *logrus.Entry, log types.Log, monState *objects.MonitorState, taskRequestChan chan<- tasks.TaskRequest, monDB *db.Database) error {
+func ProcessNewAliceNetNodeVersionAvailable(contracts layer1.AllSmartContracts, logger *logrus.Entry, log types.Log, monState *objects.MonitorState, taskRequestChan chan<- tasks.TaskRequest) error {
 	logger = logger.WithField("method", "ProcessNewAliceNetNodeVersionAvailable")
 	logger.Info("Processing new AliceNet node version...")
 
@@ -56,10 +57,11 @@ func ProcessNewAliceNetNodeVersionAvailable(eth layer1.Client, contracts layer1.
 	// Killing previous task
 	taskRequestChan <- tasks.NewKillTaskRequest(&dynamics.CanonicalVersionCheckTask{})
 
-	//todo: check the local version and schedule the task if applies
-
-	// Scheduling task with the new Canonical Version
-	taskRequestChan <- tasks.NewScheduleTaskRequest(dynamics.NewVersionCheckTask(event.MaxUpdateEpoch, event.Version))
+	//If any element of the new Version is greater, schedule the task
+	if newMajorIsGreater, newMinorIsGreater, newPatchIsGreater, _ := utils.CompareCanonicalVersion(event.Version); newMajorIsGreater || newMinorIsGreater || newPatchIsGreater {
+		// Scheduling task with the new Canonical Version
+		taskRequestChan <- tasks.NewScheduleTaskRequest(dynamics.NewVersionCheckTask(event.MaxUpdateEpoch, event.Version))
+	}
 
 	return nil
 }

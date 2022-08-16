@@ -60,5 +60,7 @@ func ProcessSnapshotTaken(eth layer1.Client, contracts layer1.AllSmartContracts,
 	// kill any task that might still be trying to do this snapshot
 	taskRequestChan <- tasks.NewKillTaskRequest(&snapshots.SnapshotTask{})
 
+	//TODO: check the Canonical Version and epoch and kill the validator if applies
+
 	return nil
 }
