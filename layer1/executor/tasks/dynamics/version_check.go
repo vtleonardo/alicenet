@@ -6,7 +6,6 @@ import (
 	"github.com/alicenet/alicenet/bridge/bindings"
 	"github.com/alicenet/alicenet/utils"
 	"github.com/ethereum/go-ethereum/core/types"
-	"math/big"
 	"time"
 
 	"github.com/alicenet/alicenet/layer1/executor/tasks"
@@ -16,8 +15,7 @@ import (
 type CanonicalVersionCheckTask struct {
 	*tasks.BaseTask
 	//Version info
-	MaxUpdateEpoch *big.Int
-	Version        bindings.CanonicalVersion
+	Version bindings.CanonicalVersion
 }
 
 const messageFrequency = 1 * time.Second
@@ -26,11 +24,10 @@ const messageFrequency = 1 * time.Second
 var _ tasks.Task = &CanonicalVersionCheckTask{}
 
 // NewVersionCheckTask creates a background task that attempts to verify the version check.
-func NewVersionCheckTask(maxUpdateEpoch *big.Int, version bindings.CanonicalVersion) *CanonicalVersionCheckTask {
+func NewVersionCheckTask(version bindings.CanonicalVersion) *CanonicalVersionCheckTask {
 	return &CanonicalVersionCheckTask{
-		BaseTask:       tasks.NewBaseTask(0, 0, false, nil),
-		MaxUpdateEpoch: maxUpdateEpoch,
-		Version:        version,
+		BaseTask: tasks.NewBaseTask(0, 0, false, nil),
+		Version:  version,
 	}
 }
 
@@ -54,7 +51,7 @@ func (t *CanonicalVersionCheckTask) Execute(ctx context.Context) (*types.Transac
 
 	if newMajorIsGreater {
 		text = fmt.Sprintf("CRITICAL: your Major Canonical Node Version %d.%d.%d is lower than the latest %d.%d.%d. Please update your node, otherwise it will be killed on epoch %d.",
-			localVersion.Major, localVersion.Minor, localVersion.Patch, t.Version.Major, t.Version.Minor, t.Version.Patch, t.MaxUpdateEpoch.Uint64())
+			localVersion.Major, localVersion.Minor, localVersion.Patch, t.Version.Major, t.Version.Minor, t.Version.Patch, t.Version.ExecutionEpoch)
 	} else if newMinorIsGreater {
 		text = fmt.Sprintf("WARNING: your Minor Canonical Node Version %d.%d.%d is lower than the latest %d.%d.%d. Please update your node.",
 			localVersion.Major, localVersion.Minor, localVersion.Patch, t.Version.Major, t.Version.Minor, t.Version.Patch)

@@ -45,7 +45,7 @@ func ProcessNewAliceNetNodeVersionAvailable(contracts layer1.AllSmartContracts, 
 	}
 
 	logger = logger.WithFields(logrus.Fields{
-		"MaxUpdateEpoch": event.MaxUpdateEpoch.Int64(),
+		"ExecutionEpoch": event.Version.ExecutionEpoch,
 		"Major":          event.Version.Major,
 		"Minor":          event.Version.Minor,
 		"Patch":          event.Version.Patch,
@@ -60,7 +60,7 @@ func ProcessNewAliceNetNodeVersionAvailable(contracts layer1.AllSmartContracts, 
 	//If any element of the new Version is greater, schedule the task
 	if newMajorIsGreater, newMinorIsGreater, newPatchIsGreater, _ := utils.CompareCanonicalVersion(event.Version); newMajorIsGreater || newMinorIsGreater || newPatchIsGreater {
 		// Scheduling task with the new Canonical Version
-		taskRequestChan <- tasks.NewScheduleTaskRequest(dynamics.NewVersionCheckTask(event.MaxUpdateEpoch, event.Version))
+		taskRequestChan <- tasks.NewScheduleTaskRequest(dynamics.NewVersionCheckTask(event.Version))
 	}
 
 	return nil
