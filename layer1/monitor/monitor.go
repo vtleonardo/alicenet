@@ -76,26 +76,12 @@ func NewMonitor(cdb *db.Database,
 		"Timeout":  constants.MonitorTimeout.String(),
 	})
 
-	eventMap := objects.NewEventMap()
-	err := events.SetupEventMap(eventMap, cdb, monDB, adminHandler, depositHandler, taskRequestChan)
-	if err != nil {
-		return nil, err
-	}
-
-	State := objects.NewMonitorState()
-
-	adminHandler.RegisterSnapshotCallback(func(bh *objs.BlockHeader, numOfValidators, validatorIndex int) error {
-		logger.Info("Entering snapshot callback")
-		return PersistSnapshot(eth, bh, numOfValidators, validatorIndex, taskRequestChan, monDB)
-	})
-
-	return &monitor{
+	mon := &monitor{
 		adminHandler:         adminHandler,
 		depositHandler:       depositHandler,
 		eth:                  eth,
 		contracts:            contracts,
 		eventFilterAddresses: eventFilterAddresses,
-		eventMap:             eventMap,
 		cdb:                  cdb,
 		db:                   monDB,
 		logger:               logger,
@@ -104,10 +90,24 @@ func NewMonitor(cdb *db.Database,
 		closeChan:            make(chan struct{}),
 		closeOnce:            sync.Once{},
 		statusChan:           make(chan string, 1),
-		State:                State,
 		batchSize:            batchSize,
 		taskRequestChan:      taskRequestChan,
-	}, nil
+	}
+
+	eventMap := objects.NewEventMap()
+	err := events.SetupEventMap(eventMap, cdb, monDB, adminHandler, depositHandler, taskRequestChan, mon.Close)
+	if err != nil {
+		return nil, err
+	}
+	mon.eventMap = eventMap
+	mon.State = objects.NewMonitorState()
+
+	adminHandler.RegisterSnapshotCallback(func(bh *objs.BlockHeader, numOfValidators, validatorIndex int) error {
+		logger.Info("Entering snapshot callback")
+		return PersistSnapshot(eth, bh, numOfValidators, validatorIndex, taskRequestChan, monDB)
+	})
+
+	return mon, nil
 }
 
 // GetStatus of the monitor.

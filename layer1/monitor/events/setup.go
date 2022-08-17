@@ -131,7 +131,7 @@ func RegisterETHDKGEvents(em *objects.EventMap, monDB *db.Database, adminHandler
 	}
 }
 
-func SetupEventMap(em *objects.EventMap, cdb, monDB *db.Database, adminHandler monInterfaces.AdminHandler, depositHandler monInterfaces.DepositHandler, taskRequestChan chan<- tasks.TaskRequest) error {
+func SetupEventMap(em *objects.EventMap, cdb, monDB *db.Database, adminHandler monInterfaces.AdminHandler, depositHandler monInterfaces.DepositHandler, taskRequestChan chan<- tasks.TaskRequest, exitFunc func()) error {
 	RegisterETHDKGEvents(em, monDB, adminHandler, taskRequestChan)
 
 	// MadByte.DepositReceived
@@ -157,7 +157,7 @@ func SetupEventMap(em *objects.EventMap, cdb, monDB *db.Database, adminHandler m
 
 	if err := em.Register(snapshotTakenEvent.ID.String(), snapshotTakenEvent.Name,
 		func(eth layer1.Client, contracts layer1.AllSmartContracts, logger *logrus.Entry, state *objects.MonitorState, log types.Log) error {
-			return ProcessSnapshotTaken(eth, contracts, logger, log, adminHandler, taskRequestChan)
+			return ProcessSnapshotTaken(eth, contracts, logger, log, adminHandler, taskRequestChan, exitFunc)
 		}); err != nil {
 		return err
 	}
