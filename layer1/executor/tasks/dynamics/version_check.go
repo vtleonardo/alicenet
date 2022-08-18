@@ -74,8 +74,6 @@ func (t *CanonicalVersionCheckTask) Execute(ctx context.Context) (*types.Transac
 			return nil, nil
 		}
 	}
-
-	return nil, nil
 }
 
 // ShouldExecute checks if it makes sense to execute the task.

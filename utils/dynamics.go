@@ -3,11 +3,11 @@ package utils
 import "github.com/alicenet/alicenet/bridge/bindings"
 
 func CompareCanonicalVersion(newVersion bindings.CanonicalVersion) (bool, bool, bool, bindings.CanonicalVersion) {
-	localVersion := getLocalVersion()
+	localVersion := GetLocalVersion()
 	return newVersion.Major > localVersion.Major, newVersion.Minor > localVersion.Minor, newVersion.Patch > localVersion.Patch, localVersion
 }
 
-func getLocalVersion() bindings.CanonicalVersion {
+func GetLocalVersion() bindings.CanonicalVersion {
 	return bindings.CanonicalVersion{
 		Major:      1,
 		Minor:      4,
