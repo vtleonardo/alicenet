@@ -5,6 +5,7 @@ package monitor
 import (
 	"encoding/json"
 	"errors"
+	"github.com/alicenet/alicenet/utils"
 	"math/big"
 	"testing"
 	"time"
@@ -194,14 +195,10 @@ func TestProcessNewAliceNetNodeVersionAvailableEvent(t *testing.T) {
 	eth.EndpointInSyncFunc.SetDefaultReturn(true, 4, nil)
 	eth.GetFinalizedHeightFunc.SetDefaultReturn(1, nil)
 
+	localVersion := utils.GetLocalVersion()
+	localVersion.Major++
 	version := &bindings.DynamicsNewAliceNetNodeVersionAvailable{
-		Version: bindings.CanonicalVersion{
-			Major:          2,
-			Minor:          1,
-			Patch:          1,
-			BinaryHash:     [32]byte{},
-			ExecutionEpoch: 10,
-		},
+		Version: localVersion,
 	}
 	dynamics := mocks.NewMockIDynamics()
 	dynamics.ParseNewAliceNetNodeVersionAvailableFunc.SetDefaultReturn(version, nil)
@@ -272,15 +269,10 @@ func TestProcessSnapshotTakenEventWithOutdatedCanonicalVersion(t *testing.T) {
 	snapshots.ParseSnapshotTakenFunc.SetDefaultReturn(snapshotTakenEvent, nil)
 	contracts.SnapshotsFunc.SetDefaultReturn(snapshots)
 
-	version := bindings.CanonicalVersion{
-		Major:          2,
-		Minor:          1,
-		Patch:          1,
-		BinaryHash:     [32]byte{},
-		ExecutionEpoch: 5,
-	}
+	localVersion := utils.GetLocalVersion()
+	localVersion.Major++
 	dynamics := mocks.NewMockIDynamics()
-	dynamics.GetLatestAliceNetVersionFunc.SetDefaultReturn(version, nil)
+	dynamics.GetLatestAliceNetVersionFunc.SetDefaultReturn(localVersion, nil)
 	contracts.DynamicsFunc.SetDefaultReturn(dynamics)
 
 	snapshotEvents := events.GetSnapshotEvents()
