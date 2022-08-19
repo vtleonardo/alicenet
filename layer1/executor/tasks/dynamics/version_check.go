@@ -50,7 +50,7 @@ func (t *CanonicalVersionCheckTask) Execute(ctx context.Context) (*types.Transac
 	text := ""
 
 	if newMajorIsGreater {
-		text = fmt.Sprintf("CRITICAL: your Major Canonical Node Version %d.%d.%d is lower than the latest %d.%d.%d. Please update your node, otherwise it will be killed on epoch %d.",
+		text = fmt.Sprintf("CRITICAL: your Major Canonical Node Version %d.%d.%d is lower than the latest %d.%d.%d. Please update your node, otherwise it will be killed after epoch %d.",
 			localVersion.Major, localVersion.Minor, localVersion.Patch, t.Version.Major, t.Version.Minor, t.Version.Patch, t.Version.ExecutionEpoch)
 	} else if newMinorIsGreater {
 		text = fmt.Sprintf("WARNING: your Minor Canonical Node Version %d.%d.%d is lower than the latest %d.%d.%d. Please update your node.",

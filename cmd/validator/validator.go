@@ -424,11 +424,12 @@ func getCurrentEpochAndCanonicalVersion(ctx context.Context, eth layer1.Client, 
 	if err != nil {
 		return 0, latestVersion, err
 	}
+	logEntry.Infof("Canonical Node Version %d.%d.%d", latestVersion.Major, latestVersion.Minor, latestVersion.Patch)
 
 	for i := 0; i < retryCount; i++ {
 		currentEpoch, err = contractsHandler.EthereumContracts().Snapshots().GetEpoch(callOpts)
 		if err != nil {
-			logEntry.Errorf("Received and error during GetCurrentHeight: %v", err)
+			logEntry.Errorf("Received and error during GetEpoch: %v", err)
 			<-time.After(retryDelay)
 			continue
 		}

@@ -942,15 +942,15 @@ task("setHardhatBaseFee", "sets the hardhat node base fee for the next block")
 
 task("updateAliceNetNodeVersion", "Set the Canonical AliceNet Node Version")
   .addParam("factoryAddress", "address of the factory deploying the contract")
-  .addParam("major", "Major Canonical AliceNet version", -1, types.int)
-  .addParam("minor", "Minor Canonical AliceNet version", -1, types.int)
-  .addParam("patch", "Patch Canonical AliceNet version", -1, types.int)
   .addParam(
-    "executionEpoch",
-    "ExecutionEpoch Canonical AliceNet version",
+    "relativeEpoch",
+    "relativeEpoch Canonical AliceNet version",
     -1,
     types.int
   )
+  .addParam("major", "Major Canonical AliceNet version", -1, types.int)
+  .addParam("minor", "Minor Canonical AliceNet version", -1, types.int)
+  .addParam("patch", "Patch Canonical AliceNet version", -1, types.int)
   .addParam(
     "binaryHash",
     "BinaryHash Canonical AliceNet version",
@@ -969,6 +969,12 @@ task("updateAliceNetNodeVersion", "Set the Canonical AliceNet Node Version")
       )
     );
 
+    if (taskArgs.relativeEpoch < 2) {
+      throw new Error(
+        "relativeEpoch not passed or the value was smaller than 2!"
+      );
+    }
+
     if (taskArgs.major < 0) {
       throw new Error("major not passed or the value was smaller than 0!");
     }
@@ -981,12 +987,6 @@ task("updateAliceNetNodeVersion", "Set the Canonical AliceNet Node Version")
       throw new Error("patch not passed or the value was smaller than 0!");
     }
 
-    if (taskArgs.executionEpoch < 0) {
-      throw new Error(
-        "executionEpoch not passed or the value was smaller than 0!"
-      );
-    }
-
     if (!taskArgs.binaryHash) {
       throw new Error("binaryHash not passed!");
     }
@@ -996,10 +996,10 @@ task("updateAliceNetNodeVersion", "Set the Canonical AliceNet Node Version")
     const input = dynamics.interface.encodeFunctionData(
       "updateAliceNetNodeVersion",
       [
+        taskArgs.relativeEpoch,
         taskArgs.major,
         taskArgs.minor,
         taskArgs.patch,
-        taskArgs.executionEpoch,
         hre.ethers.utils.formatBytes32String(taskArgs.binaryHash),
       ]
     );
