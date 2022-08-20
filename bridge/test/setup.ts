@@ -47,6 +47,19 @@ export interface Snapshot {
   GroupSignature: string;
   height: BigNumberish;
   validatorIndex: number;
+  GroupSignatureDeserialized?: [
+    [string, string, string, string],
+    [string, string]
+  ];
+  BClaimsDeserialized?: [
+    number,
+    number,
+    number,
+    string,
+    string,
+    string,
+    string
+  ];
 }
 
 export interface BaseFixture {
@@ -70,6 +83,7 @@ export interface Fixture extends BaseTokensFixture {
   namedSigners: SignerWithAddress[];
   invalidTxConsumptionAccusation: InvalidTxConsumptionAccusation;
   multipleProposalAccusation: MultipleProposalAccusation;
+  distribution: Distribution;
 }
 
 /**
@@ -171,7 +185,7 @@ async function getContractAddressFromDeployedProxyEvent(
   return await getContractAddressFromEventLog(tx, eventSignature, eventName);
 }
 
-async function getContractAddressFromDeployedRawEvent(
+export async function getContractAddressFromDeployedRawEvent(
   tx: ContractTransaction
 ): Promise<string> {
   const eventSignature = "event DeployedRaw(address contractAddr)";
@@ -334,13 +348,13 @@ export const deployUpgradeableWithFactory = async (
     );
   }
   let initCallDataBin = "0x";
-  if (initCallData !== undefined) {
-    try {
-      initCallDataBin = _Contract.interface.encodeFunctionData(
-        "initialize",
-        initCallData
-      );
-    } catch (error) {
+  try {
+    initCallDataBin = _Contract.interface.encodeFunctionData(
+      "initialize",
+      initCallData
+    );
+  } catch (error) {
+    if (!(error as Error).message.includes("no matching function")) {
       console.warn(
         `Error deploying contract ${contractName} couldn't get initialize arguments: ${error}`
       );

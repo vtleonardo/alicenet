@@ -2,15 +2,18 @@ package events
 
 import (
 	"context"
-	"github.com/alicenet/alicenet/utils"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/sirupsen/logrus"
 
 	"github.com/alicenet/alicenet/consensus/objs"
+	"github.com/alicenet/alicenet/crypto/bn256"
 	"github.com/alicenet/alicenet/layer1"
 	"github.com/alicenet/alicenet/layer1/executor/tasks"
 	"github.com/alicenet/alicenet/layer1/executor/tasks/snapshots"
 	monInterfaces "github.com/alicenet/alicenet/layer1/monitor/interfaces"
+	"github.com/alicenet/alicenet/utils"
 )
 
 // ProcessSnapshotTaken handles receiving snapshots.
@@ -49,7 +52,19 @@ func ProcessSnapshotTaken(eth layer1.Client, contracts layer1.AllSmartContracts,
 
 	header := &objs.BlockHeader{}
 	header.BClaims = bclaims
-	header.SigGroup = event.SignatureRaw
+	sigGroupBytes := []*big.Int{
+		event.MasterPublicKey[0],
+		event.MasterPublicKey[1],
+		event.MasterPublicKey[2],
+		event.MasterPublicKey[3],
+		event.Signature[0],
+		event.Signature[1],
+	}
+	header.SigGroup, err = bn256.MarshalBigIntSlice(sigGroupBytes)
+	if err != nil {
+		logger.WithError(err).Error("Failed to marshal signature from snapshots")
+		return err
+	}
 	header.TxHshLst = [][]byte{}
 
 	// send the reconstituted header to a handler
