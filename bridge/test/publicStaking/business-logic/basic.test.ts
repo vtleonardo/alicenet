@@ -34,6 +34,29 @@ describe("PublicStaking: Basics", async () => {
     );
   });
 
+  it("Should return correct owner address for valid position", async function () {
+    expect(await fixture.publicStaking.ownerOf(1)).to.be.equal(
+      adminSigner.address
+    );
+  });
+
+  it("Should return correct owner for valid position", async function () {
+    expect(
+      await fixture.publicStaking.balanceOf(adminSigner.address)
+    ).to.be.equal(1);
+  });
+
+  it("Should return correct token id for index of owned token", async function () {
+    const index = 0;
+    const expectedTokenId = 1;
+    expect(
+      await fixture.publicStaking.tokenOfOwnerByIndex(
+        adminSigner.address,
+        index
+      )
+    ).to.be.equal(expectedTokenId);
+  });
+
   it("Should not be able to get a position that doesn't exist", async function () {
     await expect(fixture.publicStaking.getPosition(2))
       .to.be.revertedWithCustomError(fixture.publicStaking, "InvalidTokenId")
