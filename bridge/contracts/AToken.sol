@@ -16,8 +16,8 @@ contract AToken is
     IStakingToken,
     ERC20Upgradeable,
     ImmutableFactory,
-    StakingTokenMinter,
-    StakingTokenBurner
+    ImmutableATokenMinter,
+    ImmutableATokenBurner
 {
     uint256 internal constant _CONVERSION_MULTIPLIER = 15_555_555_555_555_555_555_555_555_555;
     uint256 internal constant _CONVERSION_SCALE = 10_000_000_000_000_000_000_000_000_000;
@@ -27,8 +27,8 @@ contract AToken is
 
     constructor(address legacyToken_, address aliceNetFactory_)
         ImmutableFactory(aliceNetFactory_)
-        StakingTokenMinter()
-        StakingTokenBurner()
+        ImmutableATokenMinter()
+        ImmutableATokenBurner()
     {
         _legacyToken = legacyToken_;
     }

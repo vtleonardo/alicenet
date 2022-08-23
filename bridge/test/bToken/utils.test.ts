@@ -22,8 +22,10 @@ describe("Testing BToken Utils methods", async () => {
   });
 
   it("Only factory should be allowed to call initialize", async () => {
-    const bToken = await (await ethers.getContractFactory("BToken")).deploy();
-    const [, user] = await ethers.getSigners();
+    const [admin, user] = await ethers.getSigners();
+    const bToken = await (
+      await ethers.getContractFactory("BToken")
+    ).deploy(admin.address);
     await expect(bToken.connect(user).initialize()).to.revertedWithCustomError(
       bToken,
       "OnlyFactory"

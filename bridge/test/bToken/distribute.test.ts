@@ -16,8 +16,13 @@ const updateDistributionContract = async (
   const transaction = await fixture.factory.deployCreate(
     (
       await ethers.getContractFactory("Distribution")
-    ).getDeployTransaction(splits[0], splits[1], splits[2], splits[3])
-      .data as BytesLike
+    ).getDeployTransaction(
+      fixture.bToken.address,
+      splits[0],
+      splits[1],
+      splits[2],
+      splits[3]
+    ).data as BytesLike
   );
   await fixture.factory.upgradeProxy(
     ethers.utils.formatBytes32String("Distribution"),
@@ -75,7 +80,7 @@ describe("Testing BToken Distribution methods", async () => {
     const transaction = await fixture.factory.deployCreate(
       (
         await ethers.getContractFactory("ReentrantLoopDistributionMock")
-      ).getDeployTransaction().data as BytesLike
+      ).getDeployTransaction(fixture.bToken.address).data as BytesLike
     );
     await fixture.factory.upgradeProxy(
       ethers.utils.formatBytes32String("Distribution"),
@@ -93,7 +98,7 @@ describe("Testing BToken Distribution methods", async () => {
     const transaction = await fixture.factory.deployCreate(
       (
         await ethers.getContractFactory("ReentrantLoopDistributionMock")
-      ).getDeployTransaction().data as BytesLike
+      ).getDeployTransaction(fixture.bToken.address).data as BytesLike
     );
     await fixture.factory.upgradeProxy(
       ethers.utils.formatBytes32String("Foundation"),

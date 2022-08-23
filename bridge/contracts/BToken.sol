@@ -12,8 +12,6 @@ import "contracts/interfaces/IUtilityToken.sol";
 import "contracts/libraries/errors/UtilityTokenErrors.sol";
 import "contracts/libraries/math/Sigmoid.sol";
 
-/// @custom:salt BToken
-/// @custom:deploy-type deployStatic
 contract BToken is
     IUtilityToken,
     ERC20Upgradeable,
@@ -49,7 +47,10 @@ contract BToken is
         uint256 amount
     );
 
-    constructor() ImmutableFactory(msg.sender) ImmutableDistribution() {}
+    constructor(address aliceNetFactory_)
+        ImmutableFactory(aliceNetFactory_)
+        ImmutableDistribution()
+    {}
 
     function initialize() public onlyFactory initializer {
         __ERC20_init("AliceNet Utility Token", "ALCB");

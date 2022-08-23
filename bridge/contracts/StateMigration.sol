@@ -10,6 +10,7 @@ import "contracts/interfaces/IStakingNFT.sol";
 import "contracts/interfaces/IETHDKG.sol";
 import "contracts/utils/ImmutableAuth.sol";
 import "contracts/libraries/tokens/StakingToken.sol";
+import "contracts/libraries/tokens/UtilityToken.sol";
 import "contracts/libraries/parsers/BClaimsParserLibrary.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
@@ -41,21 +42,25 @@ contract StateMigration is
     ImmutableSnapshots,
     ImmutableETHDKG,
     StakingToken,
-    StakingTokenMinter,
-    ImmutableBToken,
+    ImmutableATokenMinter,
+    UtilityToken,
     ImmutablePublicStaking,
     ImmutableValidatorPool
 {
     uint256 public constant EPOCH_LENGTH = 1024;
     ExternalStore internal immutable _externalStore;
 
-    constructor(address factory_, address stakingAddress_)
+    constructor(
+        address factory_,
+        address stakingAddress_,
+        address utilityAddress_
+    )
         ImmutableFactory(factory_)
         ImmutableSnapshots()
         ImmutableETHDKG()
+        UtilityToken(utilityAddress_)
         StakingToken(stakingAddress_)
-        ImmutableBToken()
-        StakingTokenMinter()
+        ImmutableATokenMinter()
         ImmutablePublicStaking()
         ImmutableValidatorPool()
     {
@@ -172,7 +177,7 @@ contract StateMigration is
         );
 
         // deposit
-        IUtilityToken(_bTokenAddress()).virtualMintDeposit(
+        IUtilityToken(_utilityTokenAddress()).virtualMintDeposit(
             1,
             0xba7809A4114eEF598132461f3202b5013e834CD5,
             500000000000

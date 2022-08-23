@@ -442,7 +442,12 @@ export const deployFactoryAndBaseTokens = async (
   )) as AToken;
 
   // BToken
-  const bToken = (await deployStaticWithFactory(factory, "BToken")) as BToken;
+  const bToken = (await deployCreateWithFactory(
+    factory,
+    "BToken",
+    [],
+    [factory.address]
+  )) as BToken;
   // PublicStaking
   const publicStaking = (await deployUpgradeableWithFactory(
     factory,
@@ -699,7 +704,7 @@ export const getFixture = async (
     "Distribution",
     undefined,
     undefined,
-    [332, 332, 332, 4]
+    [bToken.address, 332, 332, 332, 4]
   )) as Distribution;
 
   const dynamics = (await deployUpgradeableWithFactory(

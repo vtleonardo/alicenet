@@ -6,6 +6,7 @@ import "contracts/interfaces/IDistribution.sol";
 import "contracts/utils/MagicEthTransfer.sol";
 import "contracts/utils/EthSafeTransfer.sol";
 import "contracts/libraries/errors/DistributionErrors.sol";
+import "contracts/libraries/tokens/UtilityToken.sol";
 
 /// @custom:salt Distribution
 /// @custom:deploy-type deployUpgradeable
@@ -14,7 +15,7 @@ contract Distribution is
     MagicEthTransfer,
     EthSafeTransfer,
     ImmutableFactory,
-    ImmutableBToken,
+    UtilityToken,
     ImmutablePublicStaking,
     ImmutableValidatorStaking,
     ImmutableLiquidityProviderStaking,
@@ -32,13 +33,14 @@ contract Distribution is
     uint256 internal immutable _validatorStakingSplit;
 
     constructor(
+        address utilityAddress_,
         uint256 validatorStakingSplit_,
         uint256 publicStakingSplit_,
         uint256 liquidityProviderStakingSplit_,
         uint256 protocolFeeSplit_
     )
         ImmutableFactory(msg.sender)
-        ImmutableBToken()
+        UtilityToken(utilityAddress_)
         ImmutablePublicStaking()
         ImmutableValidatorStaking()
         ImmutableLiquidityProviderStaking()
@@ -59,7 +61,7 @@ contract Distribution is
         _protocolFeeSplit = protocolFeeSplit_;
     }
 
-    function depositEth(uint8 magic_) public payable checkMagic(magic_) onlyBToken {
+    function depositEth(uint8 magic_) public payable checkMagic(magic_) onlyUtilityToken {
         _distribute();
     }
 

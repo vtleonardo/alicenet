@@ -13,6 +13,7 @@ import "contracts/libraries/tokens/StakingToken.sol";
 import "contracts/libraries/parsers/BClaimsParserLibrary.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "contracts/libraries/errors/RegisterValidatorErrors.sol";
+import "contracts/libraries/tokens/UtilityToken.sol";
 
 contract ExternalStoreRegistration is ImmutableFactory {
     uint256 internal _counter;
@@ -50,21 +51,25 @@ contract RegisterValidators is
     ImmutableSnapshots,
     ImmutableETHDKG,
     StakingToken,
-    StakingTokenMinter,
-    ImmutableBToken,
+    ImmutableATokenMinter,
+    UtilityToken,
     ImmutablePublicStaking,
     ImmutableValidatorPool
 {
     uint256 public constant EPOCH_LENGTH = 1024;
     ExternalStoreRegistration internal immutable _externalStore;
 
-    constructor(address factory_, address stakingAddress_)
+    constructor(
+        address factory_,
+        address stakingAddress_,
+        address utilityAddress_
+    )
         ImmutableFactory(factory_)
         ImmutableSnapshots()
         ImmutableETHDKG()
         StakingToken(stakingAddress_)
-        ImmutableBToken()
-        StakingTokenMinter()
+        UtilityToken(utilityAddress_)
+        ImmutableATokenMinter()
         ImmutablePublicStaking()
         ImmutableValidatorPool()
     {
