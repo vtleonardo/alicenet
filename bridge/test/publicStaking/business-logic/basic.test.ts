@@ -31,7 +31,7 @@ describe("PublicStaking: Basics", async () => {
   it("Only factory should be allowed to call initialize", async () => {
     const publicStaking = await (
       await ethers.getContractFactory("PublicStaking")
-    ).deploy();
+    ).deploy(fixture.aToken.address);
     const [, user] = await ethers.getSigners();
     await expect(
       publicStaking.connect(user).initialize()

@@ -24,34 +24,7 @@ abstract contract ImmutableFactory is DeterministicAddress {
     }
 }
 
-abstract contract ImmutableAToken is ImmutableFactory {
-    address private immutable _aToken;
-    error OnlyAToken(address sender, address expected);
-
-    modifier onlyAToken() {
-        if (msg.sender != _aToken) {
-            revert OnlyAToken(msg.sender, _aToken);
-        }
-        _;
-    }
-
-    constructor() {
-        _aToken = getMetamorphicContractAddress(
-            0x41546f6b656e0000000000000000000000000000000000000000000000000000,
-            _factoryAddress()
-        );
-    }
-
-    function _aTokenAddress() internal view returns (address) {
-        return _aToken;
-    }
-
-    function _saltForAToken() internal pure returns (bytes32) {
-        return 0x41546f6b656e0000000000000000000000000000000000000000000000000000;
-    }
-}
-
-abstract contract ImmutableATokenBurner is ImmutableFactory {
+abstract contract StakingTokenBurner is ImmutableFactory {
     address private immutable _aTokenBurner;
     error OnlyATokenBurner(address sender, address expected);
 
@@ -78,7 +51,7 @@ abstract contract ImmutableATokenBurner is ImmutableFactory {
     }
 }
 
-abstract contract ImmutableATokenMinter is ImmutableFactory {
+abstract contract StakingTokenMinter is ImmutableFactory {
     address private immutable _aTokenMinter;
     error OnlyATokenMinter(address sender, address expected);
 

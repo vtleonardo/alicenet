@@ -5,6 +5,11 @@
         "internalType": "address",
         "name": "legacyToken_",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "aliceNetFactory_",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",

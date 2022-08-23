@@ -10,9 +10,9 @@ abstract contract BaseMock {
 
     receive() external payable virtual {}
 
-    function setTokens(AToken aToken_, PublicStaking stakeNFT_) public {
+    function setTokens(AToken stakingAddress_, PublicStaking stakeNFT_) public {
         publicStaking = stakeNFT_;
-        aToken = aToken_;
+        aToken = stakingAddress_;
     }
 
     function mint(uint256 amount_) public returns (uint256) {

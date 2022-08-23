@@ -1027,7 +1027,7 @@ task(
     // function to deploy a contract
     const deployContract = async () => {
       const gp = await hre.ethers.provider.getGasPrice();
-      await validatorPoolFactory.deploy({
+      await validatorPoolFactory.deploy(fooToken.address, {
         nonce: await accounts[0].getTransactionCount("pending"),
         gasPrice: gp,
       });

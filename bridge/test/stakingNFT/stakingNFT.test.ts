@@ -25,11 +25,17 @@ contract("StakingNFT", async () => {
     }
     stakingNFT = (await deployUpgradeableWithFactory(
       fixture.factory,
-      "MockStakingNFT"
+      "MockStakingNFT",
+      undefined,
+      undefined,
+      [fixture.aToken.address]
     )) as MockStakingNFT;
     aTokenMinter = (await deployUpgradeableWithFactory(
       fixture.factory,
-      "ATokenMinter"
+      "ATokenMinter",
+      undefined,
+      undefined,
+      [fixture.aToken.address]
     )) as ATokenMinter;
   });
 

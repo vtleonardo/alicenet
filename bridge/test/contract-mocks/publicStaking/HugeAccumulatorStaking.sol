@@ -7,7 +7,7 @@ import "contracts/libraries/StakingNFT/StakingNFT.sol";
 contract HugeAccumulatorStaking is StakingNFT {
     uint256 public constant OFFSET_TO_OVERFLOW = 1_000000000000000000;
 
-    constructor() StakingNFT() {}
+    constructor(address stakingTokenAddress_) StakingNFT(stakingTokenAddress_) {}
 
     function initialize() public onlyFactory initializer {
         __stakingNFTInit("HugeAccumulator", "APS");

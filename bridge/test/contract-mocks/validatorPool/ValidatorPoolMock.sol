@@ -10,6 +10,7 @@ import "contracts/utils/CustomEnumerableMaps.sol";
 import "contracts/utils/DeterministicAddress.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "contracts/libraries/errors/ValidatorPoolErrors.sol";
+import "contracts/libraries/tokens/StakingToken.sol";
 
 contract ValidatorPoolMock is
     Initializable,
@@ -18,7 +19,7 @@ contract ValidatorPoolMock is
     ImmutableSnapshots,
     ImmutableETHDKG,
     ImmutableValidatorStaking,
-    ImmutableAToken
+    StakingToken
 {
     using CustomEnumerableMaps for ValidatorDataMap;
     error OnlyAdminAllowed();
@@ -48,12 +49,12 @@ contract ValidatorPoolMock is
     }
 
     // solhint-disable no-empty-blocks
-    constructor()
+    constructor(address stakingAddress_)
         ImmutableFactory(msg.sender)
         ImmutableValidatorStaking()
         ImmutableSnapshots()
         ImmutableETHDKG()
-        ImmutableAToken()
+        StakingToken(stakingAddress_)
     {}
 
     function initialize() public onlyFactory initializer {
@@ -78,8 +79,15 @@ contract ValidatorPoolMock is
     }
 
     function mintValidatorStaking() public returns (uint256 stakeID_) {
-        IERC20Transferable(_aTokenAddress()).transferFrom(msg.sender, address(this), _stakeAmount);
-        IERC20Transferable(_aTokenAddress()).approve(_validatorStakingAddress(), _stakeAmount);
+        IERC20Transferable(_stakingTokenAddress()).transferFrom(
+            msg.sender,
+            address(this),
+            _stakeAmount
+        );
+        IERC20Transferable(_stakingTokenAddress()).approve(
+            _validatorStakingAddress(),
+            _stakeAmount
+        );
         stakeID_ = IStakingNFT(_validatorStakingAddress()).mint(_stakeAmount);
     }
 
@@ -91,8 +99,15 @@ contract ValidatorPoolMock is
     }
 
     function mintToValidatorStaking(address to_) public returns (uint256 stakeID_) {
-        IERC20Transferable(_aTokenAddress()).transferFrom(msg.sender, address(this), _stakeAmount);
-        IERC20Transferable(_aTokenAddress()).approve(_validatorStakingAddress(), _stakeAmount);
+        IERC20Transferable(_stakingTokenAddress()).transferFrom(
+            msg.sender,
+            address(this),
+            _stakeAmount
+        );
+        IERC20Transferable(_stakingTokenAddress()).approve(
+            _validatorStakingAddress(),
+            _stakeAmount
+        );
         stakeID_ = IStakingNFT(_validatorStakingAddress()).mintTo(to_, _stakeAmount, 1);
     }
 

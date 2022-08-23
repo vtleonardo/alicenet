@@ -1,6 +1,12 @@
 [
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "stakingAddress_",
+        "type": "address"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -17,7 +23,7 @@
         "type": "address"
       }
     ],
-    "name": "OnlyAToken",
+    "name": "OnlyFactory",
     "type": "error"
   },
   {
@@ -33,7 +39,7 @@
         "type": "address"
       }
     ],
-    "name": "OnlyFactory",
+    "name": "OnlyStakingToken",
     "type": "error"
   },
   {

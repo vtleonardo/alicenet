@@ -23,10 +23,10 @@ describe("Initialization", async function () {
   });
 
   it("Only factory should be allowed to call initialize", async () => {
+    const [, user] = await ethers.getSigners();
     const validatorStaking = await (
       await ethers.getContractFactory("ValidatorStaking")
-    ).deploy();
-    const [, user] = await ethers.getSigners();
+    ).deploy(user.address);
     await expect(
       validatorStaking.connect(user).initialize()
     ).to.revertedWithCustomError(validatorStaking, "OnlyFactory");

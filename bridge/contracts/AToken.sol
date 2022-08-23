@@ -11,15 +11,13 @@ import "contracts/libraries/errors/StakingTokenErrors.sol";
  * @notice This is the ERC20 implementation of the staking token used by the
  * AliceNet layer2 dapp.
  *
- * @custom:salt AToken
- * @custom:deploy-type deployStatic
  */
 contract AToken is
     IStakingToken,
     ERC20Upgradeable,
     ImmutableFactory,
-    ImmutableATokenMinter,
-    ImmutableATokenBurner
+    StakingTokenMinter,
+    StakingTokenBurner
 {
     uint256 internal constant _CONVERSION_MULTIPLIER = 15_555_555_555_555_555_555_555_555_555;
     uint256 internal constant _CONVERSION_SCALE = 10_000_000_000_000_000_000_000_000_000;
@@ -27,10 +25,10 @@ contract AToken is
     address internal immutable _legacyToken;
     bool internal _hasEarlyStageEnded;
 
-    constructor(address legacyToken_)
-        ImmutableFactory(msg.sender)
-        ImmutableATokenMinter()
-        ImmutableATokenBurner()
+    constructor(address legacyToken_, address aliceNetFactory_)
+        ImmutableFactory(aliceNetFactory_)
+        StakingTokenMinter()
+        StakingTokenBurner()
     {
         _legacyToken = legacyToken_;
     }

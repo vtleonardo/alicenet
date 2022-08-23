@@ -4,6 +4,7 @@ import "contracts/utils/DeterministicAddress.sol";
 import "contracts/interfaces/IStakingNFT.sol";
 import "contracts/interfaces/IERC20Transferable.sol";
 import "contracts/interfaces/IETHDKG.sol";
+import "contracts/libraries/tokens/StakingToken.sol";
 
 abstract contract ValidatorPoolStorage is
     ImmutableFactory,
@@ -11,7 +12,7 @@ abstract contract ValidatorPoolStorage is
     ImmutableETHDKG,
     ImmutablePublicStaking,
     ImmutableValidatorStaking,
-    ImmutableAToken
+    StakingToken
 {
     // POSITION_LOCK_PERIOD describes the maximum interval a PublicStaking Position may be locked after
     // being given back to validator exiting the pool
@@ -49,12 +50,12 @@ abstract contract ValidatorPoolStorage is
     // Mapping to keep track of the active validators IPs.
     mapping(address => string) internal _ipLocations;
 
-    constructor()
+    constructor(address stakingAddress_)
         ImmutableFactory(msg.sender)
         ImmutableSnapshots()
         ImmutableETHDKG()
         ImmutablePublicStaking()
         ImmutableValidatorStaking()
-        ImmutableAToken()
+        StakingToken(stakingAddress_)
     {}
 }

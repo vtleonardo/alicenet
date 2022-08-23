@@ -9,6 +9,7 @@ import "contracts/interfaces/IERC20Transferable.sol";
 import "contracts/interfaces/IStakingNFT.sol";
 import "contracts/interfaces/IETHDKG.sol";
 import "contracts/utils/ImmutableAuth.sol";
+import "contracts/libraries/tokens/StakingToken.sol";
 import "contracts/libraries/parsers/BClaimsParserLibrary.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
@@ -39,8 +40,8 @@ contract StateMigration is
     ImmutableFactory,
     ImmutableSnapshots,
     ImmutableETHDKG,
-    ImmutableAToken,
-    ImmutableATokenMinter,
+    StakingToken,
+    StakingTokenMinter,
     ImmutableBToken,
     ImmutablePublicStaking,
     ImmutableValidatorPool
@@ -48,13 +49,13 @@ contract StateMigration is
     uint256 public constant EPOCH_LENGTH = 1024;
     ExternalStore internal immutable _externalStore;
 
-    constructor(address factory_)
+    constructor(address factory_, address stakingAddress_)
         ImmutableFactory(factory_)
         ImmutableSnapshots()
         ImmutableETHDKG()
-        ImmutableAToken()
+        StakingToken(stakingAddress_)
         ImmutableBToken()
-        ImmutableATokenMinter()
+        StakingTokenMinter()
         ImmutablePublicStaking()
         ImmutableValidatorPool()
     {
@@ -79,7 +80,7 @@ contract StateMigration is
         IValidatorPool(_validatorPoolAddress()).setStakeAmount(1);
         // Minting 4 aTokensWei to stake the validators
         IStakingTokenMinter(_aTokenMinterAddress()).mint(_factoryAddress(), 4);
-        IERC20Transferable(_aTokenAddress()).approve(_publicStakingAddress(), 4);
+        IERC20Transferable(_stakingTokenAddress()).approve(_publicStakingAddress(), 4);
         uint256[4] memory tokenIDs;
         for (uint256 i; i < 4; i++) {
             // minting publicStaking position for the factory

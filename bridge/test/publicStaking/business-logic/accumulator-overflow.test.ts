@@ -47,13 +47,15 @@ describe("PublicStaking: Accumulator Overflow", async () => {
       "AToken",
       "AToken",
       undefined,
-      [legacyToken.address]
+      [legacyToken.address, factory.address]
     )) as AToken;
 
     stakingContract = (await deployStaticWithFactory(
       factory,
       "HugeAccumulatorStaking",
-      "PublicStaking"
+      "PublicStaking",
+      [],
+      [aToken.address]
     )) as HugeAccumulatorStaking;
 
     await posFixtureSetup(factory, aToken, legacyToken);

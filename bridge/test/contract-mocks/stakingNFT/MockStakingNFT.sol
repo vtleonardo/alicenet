@@ -4,9 +4,12 @@ pragma solidity ^0.8.16;
 import "contracts/libraries/StakingNFT/StakingNFT.sol";
 import "contracts/libraries/StakingNFT/StakingNFTStorage.sol";
 import "contracts/libraries/governance/GovernanceMaxLock.sol";
+import "contracts/libraries/tokens/StakingToken.sol";
 
 contract MockStakingNFT is StakingNFT {
     uint256 internal _dummy = 0;
+
+    constructor(address stakingTokenAddress_) StakingNFT(stakingTokenAddress_) {}
 
     function mintMock(uint256 amount_) public returns (uint256) {
         return StakingNFT.mint(amount_);
