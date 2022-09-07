@@ -6,7 +6,7 @@ import "contracts/libraries/StakingNFT/StakingNFT.sol";
 /// @custom:salt ValidatorStaking
 /// @custom:deploy-type deployUpgradeable
 contract ValidatorStaking is StakingNFT {
-    constructor() StakingNFT() {}
+    constructor(address stakingTokenAddress_) StakingNFT(stakingTokenAddress_) {}
 
     function initialize() public initializer onlyFactory {
         __stakingNFTInit("AVSNFT", "AVS");

@@ -225,6 +225,61 @@ function getBytes32Salt(contractName: string) {
   return ethers.utils.formatBytes32String(contractName);
 }
 
+export const deployCreateWithFactory = async (
+  factory: AliceNetFactory,
+  contractName: string,
+  initCallData?: any[],
+  constructorArgs: any[] = []
+): Promise<Contract> => {
+  const _Contract = await ethers.getContractFactory(contractName);
+  let deployCode: BytesLike;
+  deployCode = _Contract.getDeployTransaction(...constructorArgs)
+    .data as BytesLike;
+  const transaction = await factory.deployCreate(deployCode);
+  const hre: any = await require("hardhat");
+  let receipt = await ethers.provider.getTransactionReceipt(transaction.hash);
+  if (
+    receipt.gasUsed.gt(10_000_000) &&
+    hre.__SOLIDITY_COVERAGE_RUNNING !== true
+  ) {
+    throw new Error(
+      `Contract deployment size:${receipt.gasUsed} is greater than 10 million`
+    );
+  }
+
+  let initCallDataBin;
+  try {
+    initCallDataBin = _Contract.interface.encodeFunctionData(
+      "initialize",
+      initCallData
+    );
+  } catch (error) {
+    console.log(
+      `Warning couldnt get init call data for contract: ${contractName}`
+    );
+    console.log(error);
+    initCallDataBin = "0x";
+  }
+
+  const logicAddr = await getContractAddressFromDeployedRawEvent(transaction);
+
+  receipt = await (await factory.callAny(logicAddr, 0, initCallDataBin)).wait();
+  if (receipt.status !== undefined && receipt.status !== 1) {
+    throw new Error(
+      `Failed to call initialize contract ${contractName} status:${receipt.status}`
+    );
+  }
+  if (
+    receipt.gasUsed.gt(10_000_000) &&
+    hre.__SOLIDITY_COVERAGE_RUNNING !== true
+  ) {
+    throw new Error(
+      `Contract deployment size:${receipt.gasUsed} is greater than 10 million`
+    );
+  }
+  return _Contract.attach(logicAddr);
+};
+
 export const deployStaticWithFactory = async (
   factory: AliceNetFactory,
   contractName: string,
@@ -379,22 +434,27 @@ export const deployFactoryAndBaseTokens = async (
     factory,
     "LegacyToken"
   )) as LegacyToken;
-  const aToken = (await deployStaticWithFactory(
+  const aToken = (await deployCreateWithFactory(
     factory,
     "AToken",
-    "AToken",
     [],
-    [legacyToken.address]
+    [legacyToken.address, factory.address]
   )) as AToken;
 
   // BToken
-  const bToken = (await deployStaticWithFactory(factory, "BToken")) as BToken;
+  const bToken = (await deployCreateWithFactory(
+    factory,
+    "BToken",
+    [],
+    [factory.address]
+  )) as BToken;
   // PublicStaking
   const publicStaking = (await deployUpgradeableWithFactory(
     factory,
     "PublicStaking",
     "PublicStaking",
-    []
+    [],
+    [aToken.address]
   )) as PublicStaking;
 
   return {
@@ -499,20 +559,24 @@ export const getFixture = async (
     factory,
     "ValidatorStaking",
     "ValidatorStaking",
-    []
+    [],
+    [aToken.address]
   )) as ValidatorStaking;
   // LiquidityProviderStaking
   const liquidityProviderStaking = (await deployUpgradeableWithFactory(
     factory,
     "LiquidityProviderStaking",
     "LiquidityProviderStaking",
-    []
+    [],
+    [aToken.address]
   )) as LiquidityProviderStaking;
   // Foundation
   const foundation = (await deployUpgradeableWithFactory(
     factory,
     "Foundation",
-    undefined
+    undefined,
+    undefined,
+    [aToken.address]
   )) as Foundation;
   let validatorPool;
   if (typeof mockValidatorPool !== "undefined" && mockValidatorPool) {
@@ -520,7 +584,9 @@ export const getFixture = async (
     validatorPool = (await deployUpgradeableWithFactory(
       factory,
       "ValidatorPoolMock",
-      "ValidatorPool"
+      "ValidatorPool",
+      [],
+      [aToken.address]
     )) as ValidatorPoolMock;
   } else {
     // ValidatorPool
@@ -533,7 +599,8 @@ export const getFixture = async (
         10,
         ethers.utils.parseUnits("3", 18),
         8192,
-      ]
+      ],
+      [aToken.address]
     )) as ValidatorPool;
   }
 
@@ -591,7 +658,9 @@ export const getFixture = async (
   const aTokenMinter = (await deployUpgradeableWithFactory(
     factory,
     "ATokenMinter",
-    "ATokenMinter"
+    "ATokenMinter",
+    [],
+    [aToken.address]
   )) as ATokenMinter;
   const mintToFactory = aTokenMinter.interface.encodeFunctionData("mint", [
     factory.address,
@@ -606,7 +675,9 @@ export const getFixture = async (
   const aTokenBurner = (await deployUpgradeableWithFactory(
     factory,
     "ATokenBurner",
-    "ATokenBurner"
+    "ATokenBurner",
+    [],
+    [aToken.address]
   )) as ATokenBurner;
 
   const invalidTxConsumptionAccusation = (await deployUpgradeableWithFactory(
@@ -633,7 +704,7 @@ export const getFixture = async (
     "Distribution",
     undefined,
     undefined,
-    [332, 332, 332, 4]
+    [bToken.address, 332, 332, 332, 4]
   )) as Distribution;
 
   const dynamics = (await deployUpgradeableWithFactory(

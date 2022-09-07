@@ -24,33 +24,6 @@ abstract contract ImmutableFactory is DeterministicAddress {
     }
 }
 
-abstract contract ImmutableAToken is ImmutableFactory {
-    address private immutable _aToken;
-    error OnlyAToken(address sender, address expected);
-
-    modifier onlyAToken() {
-        if (msg.sender != _aToken) {
-            revert OnlyAToken(msg.sender, _aToken);
-        }
-        _;
-    }
-
-    constructor() {
-        _aToken = getMetamorphicContractAddress(
-            0x41546f6b656e0000000000000000000000000000000000000000000000000000,
-            _factoryAddress()
-        );
-    }
-
-    function _aTokenAddress() internal view returns (address) {
-        return _aToken;
-    }
-
-    function _saltForAToken() internal pure returns (bytes32) {
-        return 0x41546f6b656e0000000000000000000000000000000000000000000000000000;
-    }
-}
-
 abstract contract ImmutableATokenBurner is ImmutableFactory {
     address private immutable _aTokenBurner;
     error OnlyATokenBurner(address sender, address expected);
@@ -102,33 +75,6 @@ abstract contract ImmutableATokenMinter is ImmutableFactory {
 
     function _saltForATokenMinter() internal pure returns (bytes32) {
         return 0x41546f6b656e4d696e7465720000000000000000000000000000000000000000;
-    }
-}
-
-abstract contract ImmutableBToken is ImmutableFactory {
-    address private immutable _bToken;
-    error OnlyBToken(address sender, address expected);
-
-    modifier onlyBToken() {
-        if (msg.sender != _bToken) {
-            revert OnlyBToken(msg.sender, _bToken);
-        }
-        _;
-    }
-
-    constructor() {
-        _bToken = getMetamorphicContractAddress(
-            0x42546f6b656e0000000000000000000000000000000000000000000000000000,
-            _factoryAddress()
-        );
-    }
-
-    function _bTokenAddress() internal view returns (address) {
-        return _bToken;
-    }
-
-    function _saltForBToken() internal pure returns (bytes32) {
-        return 0x42546f6b656e0000000000000000000000000000000000000000000000000000;
     }
 }
 

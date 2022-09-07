@@ -9,9 +9,11 @@ import "contracts/interfaces/IERC20Transferable.sol";
 import "contracts/interfaces/IStakingNFT.sol";
 import "contracts/interfaces/IETHDKG.sol";
 import "contracts/utils/ImmutableAuth.sol";
+import "contracts/libraries/tokens/StakingToken.sol";
 import "contracts/libraries/parsers/BClaimsParserLibrary.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "contracts/libraries/errors/RegisterValidatorErrors.sol";
+import "contracts/libraries/tokens/UtilityToken.sol";
 
 contract ExternalStoreRegistration is ImmutableFactory {
     uint256 internal _counter;
@@ -48,21 +50,25 @@ contract RegisterValidators is
     ImmutableFactory,
     ImmutableSnapshots,
     ImmutableETHDKG,
-    ImmutableAToken,
+    StakingToken,
     ImmutableATokenMinter,
-    ImmutableBToken,
+    UtilityToken,
     ImmutablePublicStaking,
     ImmutableValidatorPool
 {
     uint256 public constant EPOCH_LENGTH = 1024;
     ExternalStoreRegistration internal immutable _externalStore;
 
-    constructor(address factory_)
+    constructor(
+        address factory_,
+        address stakingAddress_,
+        address utilityAddress_
+    )
         ImmutableFactory(factory_)
         ImmutableSnapshots()
         ImmutableETHDKG()
-        ImmutableAToken()
-        ImmutableBToken()
+        StakingToken(stakingAddress_)
+        UtilityToken(utilityAddress_)
         ImmutableATokenMinter()
         ImmutablePublicStaking()
         ImmutableValidatorPool()
@@ -75,7 +81,7 @@ contract RegisterValidators is
         IValidatorPool(_validatorPoolAddress()).setStakeAmount(1);
         // Minting 4 aTokensWei to stake the validators
         IStakingTokenMinter(_aTokenMinterAddress()).mint(_factoryAddress(), numValidators);
-        IERC20Transferable(_aTokenAddress()).approve(_publicStakingAddress(), numValidators);
+        IERC20Transferable(_stakingTokenAddress()).approve(_publicStakingAddress(), numValidators);
         uint256[] memory tokenIDs = new uint256[](numValidators);
         for (uint256 i; i < numValidators; i++) {
             // minting publicStaking position for the factory

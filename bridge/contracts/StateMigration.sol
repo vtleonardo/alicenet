@@ -9,6 +9,8 @@ import "contracts/interfaces/IERC20Transferable.sol";
 import "contracts/interfaces/IStakingNFT.sol";
 import "contracts/interfaces/IETHDKG.sol";
 import "contracts/utils/ImmutableAuth.sol";
+import "contracts/libraries/tokens/StakingToken.sol";
+import "contracts/libraries/tokens/UtilityToken.sol";
 import "contracts/libraries/parsers/BClaimsParserLibrary.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
@@ -39,21 +41,25 @@ contract StateMigration is
     ImmutableFactory,
     ImmutableSnapshots,
     ImmutableETHDKG,
-    ImmutableAToken,
+    StakingToken,
     ImmutableATokenMinter,
-    ImmutableBToken,
+    UtilityToken,
     ImmutablePublicStaking,
     ImmutableValidatorPool
 {
     uint256 public constant EPOCH_LENGTH = 1024;
     ExternalStore internal immutable _externalStore;
 
-    constructor(address factory_)
+    constructor(
+        address factory_,
+        address stakingAddress_,
+        address utilityAddress_
+    )
         ImmutableFactory(factory_)
         ImmutableSnapshots()
         ImmutableETHDKG()
-        ImmutableAToken()
-        ImmutableBToken()
+        UtilityToken(utilityAddress_)
+        StakingToken(stakingAddress_)
         ImmutableATokenMinter()
         ImmutablePublicStaking()
         ImmutableValidatorPool()
@@ -79,7 +85,7 @@ contract StateMigration is
         IValidatorPool(_validatorPoolAddress()).setStakeAmount(1);
         // Minting 4 aTokensWei to stake the validators
         IStakingTokenMinter(_aTokenMinterAddress()).mint(_factoryAddress(), 4);
-        IERC20Transferable(_aTokenAddress()).approve(_publicStakingAddress(), 4);
+        IERC20Transferable(_stakingTokenAddress()).approve(_publicStakingAddress(), 4);
         uint256[4] memory tokenIDs;
         for (uint256 i; i < 4; i++) {
             // minting publicStaking position for the factory
@@ -171,7 +177,7 @@ contract StateMigration is
         );
 
         // deposit
-        IUtilityToken(_bTokenAddress()).virtualMintDeposit(
+        IUtilityToken(_utilityTokenAddress()).virtualMintDeposit(
             1,
             0xba7809A4114eEF598132461f3202b5013e834CD5,
             500000000000

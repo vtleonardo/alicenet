@@ -5,6 +5,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721Enumer
 import "contracts/libraries/governance/GovernanceMaxLock.sol";
 import "contracts/libraries/StakingNFT/StakingNFTStorage.sol";
 import "contracts/utils/ImmutableAuth.sol";
+import "contracts/libraries/tokens/StakingToken.sol";
 import "contracts/utils/EthSafeTransfer.sol";
 import "contracts/utils/ERC20SafeTransfer.sol";
 import "contracts/utils/MagicValue.sol";
@@ -30,7 +31,7 @@ abstract contract StakingNFT is
     IStakingNFT,
     ImmutableFactory,
     ImmutableValidatorPool,
-    ImmutableAToken,
+    StakingToken,
     ImmutableGovernance,
     ImmutableStakingPositionDescriptor
 {
@@ -41,9 +42,9 @@ abstract contract StakingNFT is
         _;
     }
 
-    constructor()
+    constructor(address stakingAddress_)
         ImmutableFactory(msg.sender)
-        ImmutableAToken()
+        StakingToken(stakingAddress_)
         ImmutableGovernance()
         ImmutableValidatorPool()
         ImmutableStakingPositionDescriptor()
@@ -143,7 +144,7 @@ abstract contract StakingNFT is
         checkMagic(magic_)
     {
         // collect tokens
-        _safeTransferFromERC20(IERC20Transferable(_aTokenAddress()), msg.sender, amount_);
+        _safeTransferFromERC20(IERC20Transferable(_stakingTokenAddress()), msg.sender, amount_);
         // update state
         _tokenState = _deposit(amount_, _tokenState);
         _reserveToken += amount_;
@@ -438,7 +439,7 @@ abstract contract StakingNFT is
         }
         // transfer the number of tokens specified by amount_ into contract
         // from the callers account
-        _safeTransferFromERC20(IERC20Transferable(_aTokenAddress()), msg.sender, amount_);
+        _safeTransferFromERC20(IERC20Transferable(_stakingTokenAddress()), msg.sender, amount_);
 
         // get local copy of storage vars to save gas
         uint256 shares = _shares;
@@ -520,7 +521,7 @@ abstract contract StakingNFT is
         ERC721Upgradeable._burn(tokenID_);
 
         // transfer out all eth and tokens owed
-        _safeTransferERC20(IERC20Transferable(_aTokenAddress()), to_, payoutToken);
+        _safeTransferERC20(IERC20Transferable(_stakingTokenAddress()), to_, payoutToken);
         _safeTransferEth(to_, payoutEth);
         return (payoutEth, payoutToken);
     }
@@ -543,7 +544,7 @@ abstract contract StakingNFT is
         (_positions[tokenID_], payout) = _collectToken(_shares, position);
         _reserveToken -= payout;
         // perform transfer and return amount paid out
-        _safeTransferERC20(IERC20Transferable(_aTokenAddress()), to_, payout);
+        _safeTransferERC20(IERC20Transferable(_stakingTokenAddress()), to_, payout);
         return payout;
     }
 
@@ -592,7 +593,7 @@ abstract contract StakingNFT is
         returns (IERC20Transferable aToken, uint256 excess)
     {
         uint256 reserve = _reserveToken;
-        aToken = IERC20Transferable(_aTokenAddress());
+        aToken = IERC20Transferable(_stakingTokenAddress());
         uint256 balance = aToken.balanceOf(address(this));
         if (balance < reserve) {
             revert StakingNFTErrors.BalanceLessThanReserve(balance, reserve);

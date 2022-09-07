@@ -55,7 +55,7 @@ describe("PublicStaking: Skim excess of tokens", async () => {
       "AToken",
       "AToken",
       undefined,
-      [legacyToken.address]
+      [legacyToken.address, factory.address]
     )) as AToken;
     // transferring ether before contract deployment to get eth excess
     await adminSigner.sendTransaction({
@@ -65,7 +65,9 @@ describe("PublicStaking: Skim excess of tokens", async () => {
     stakingContract = (await deployStaticWithFactory(
       factory,
       "PublicStaking",
-      "PublicStaking"
+      "PublicStaking",
+      [],
+      [aToken.address]
     )) as PublicStaking;
     await posFixtureSetup(factory, aToken, legacyToken);
     tokenExcess = ethers.utils.parseUnits("100", 18).toBigInt();

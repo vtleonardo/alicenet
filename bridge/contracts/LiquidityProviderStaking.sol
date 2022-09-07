@@ -6,7 +6,7 @@ import "contracts/libraries/StakingNFT/StakingNFT.sol";
 /// @custom:salt LiquidityProviderStaking
 /// @custom:deploy-type deployUpgradeable
 contract LiquidityProviderStaking is StakingNFT {
-    constructor() StakingNFT() {}
+    constructor(address stakingTokenAddress_) StakingNFT(stakingTokenAddress_) {}
 
     function initialize() public onlyFactory initializer {
         __stakingNFTInit("ALQSNFT", "ALQS");

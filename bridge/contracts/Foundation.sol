@@ -4,6 +4,7 @@ pragma solidity ^0.8.16;
 import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "contracts/utils/ImmutableAuth.sol";
+import "contracts/libraries/tokens/StakingToken.sol";
 import "contracts/utils/EthSafeTransfer.sol";
 import "contracts/utils/ERC20SafeTransfer.sol";
 import "contracts/utils/MagicValue.sol";
@@ -16,9 +17,12 @@ contract Foundation is
     EthSafeTransfer,
     ERC20SafeTransfer,
     ImmutableFactory,
-    ImmutableAToken
+    StakingToken
 {
-    constructor() ImmutableFactory(msg.sender) ImmutableAToken() {}
+    constructor(address stakingAddress_)
+        ImmutableFactory(msg.sender)
+        StakingToken(stakingAddress_)
+    {}
 
     function initialize() public initializer onlyFactory {}
 
@@ -31,7 +35,7 @@ contract Foundation is
     /// first reading the source code and hopefully this comment
     function depositToken(uint8 magic_, uint256 amount_) public checkMagic(magic_) {
         // collect tokens
-        _safeTransferFromERC20(IERC20Transferable(_aTokenAddress()), msg.sender, amount_);
+        _safeTransferFromERC20(IERC20Transferable(_stakingTokenAddress()), msg.sender, amount_);
     }
 
     /// DO NOT CALL THIS METHOD UNLESS YOU ARE MAKING A DISTRIBUTION ALL VALUE

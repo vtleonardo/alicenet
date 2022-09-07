@@ -33,7 +33,7 @@ describe("Testing AToken", async () => {
     it("Only factory should be allowed to call initialize", async () => {
       const aToken = await (
         await ethers.getContractFactory("AToken")
-      ).deploy(user.address);
+      ).deploy(user.address, user.address);
       await expect(
         aToken.connect(user2).initialize()
       ).to.revertedWithCustomError(aToken, "OnlyFactory");

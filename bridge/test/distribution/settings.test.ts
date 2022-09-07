@@ -16,20 +16,24 @@ describe("Testing splits settings update", async () => {
 
   it("Should fail to set splits greater than one unit", async () => {
     await expect(
-      (await ethers.getContractFactory("Distribution")).deploy(333, 333, 333, 2)
+      (
+        await ethers.getContractFactory("Distribution")
+      ).deploy(fixture.bToken.address, 333, 333, 333, 2)
     ).to.be.revertedWithCustomError(fixture.distribution, `SplitValueSumError`);
   });
 
   it("Should fail to set all splits to 0", async () => {
     await expect(
-      (await ethers.getContractFactory("Distribution")).deploy(0, 0, 0, 0)
+      (
+        await ethers.getContractFactory("Distribution")
+      ).deploy(fixture.bToken.address, 0, 0, 0, 0)
     ).to.be.revertedWithCustomError(fixture.distribution, `SplitValueSumError`);
   });
 
   it("Should set some splits to 0 on a new deployment", async () => {
     const newDistribution = await (
       await ethers.getContractFactory("Distribution")
-    ).deploy(0, 0, 1000, 0);
+    ).deploy(fixture.bToken.address, 0, 0, 1000, 0);
     await fixture.factory.upgradeProxy(
       ethers.utils.formatBytes32String("Distribution"),
       newDistribution.address,
@@ -52,7 +56,7 @@ describe("Testing splits settings update", async () => {
     ]);
     const newDistribution = await (
       await ethers.getContractFactory("Distribution")
-    ).deploy(300, 300, 300, 100);
+    ).deploy(fixture.bToken.address, 300, 300, 300, 100);
     await fixture.factory.upgradeProxy(
       ethers.utils.formatBytes32String("Distribution"),
       newDistribution.address,
@@ -70,7 +74,7 @@ describe("Testing splits settings update", async () => {
     await expect(
       fixture.distribution.connect(admin).depositEth(42, { value: 10000 })
     )
-      .to.revertedWithCustomError(fixture.distribution, "OnlyBToken")
+      .to.revertedWithCustomError(fixture.distribution, "OnlyUtilityToken")
       .withArgs(admin.address, fixture.bToken.address);
     const rcpt = await (await fixture.bToken.distribute()).wait();
     expect(rcpt.status).to.be.equals(1);
