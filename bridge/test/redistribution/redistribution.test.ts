@@ -59,4 +59,28 @@ describe("CT redistribution", async () => {
       await fixture.redistribution.maxRedistributionAmount();
     expect(maxRedistributionAmount).to.equal(maxDistributionAmount);
   });
+
+  it.only("should not allow minting a position without an operator", async () => {
+    await expect(
+      fixture.redistribution
+        .connect(fixture.accounts[5])
+        .registerAddressForDistribution(
+          fixture.accounts[6].getAddress(),
+          100_000
+        )
+    ).to.revertedWithCustomError(fixture.redistribution, "NotOperator");
+  });
+
+  it.only("should mint a position", async () => {
+    const operator = fixture.accounts[5];
+    let tx = await fixture.redistribution
+      .connect(fixture.factory.address)
+      .setOperator(operator.address);
+    let rcpt = await tx.wait();
+
+    tx = await fixture.redistribution
+      .connect(operator)
+      .registerAddressForDistribution(fixture.accounts[6].address, 100_000);
+    rcpt = await tx.wait();
+  });
 });
