@@ -24,9 +24,9 @@ const DEFAULT_MAX_DISTRIBUTION_AMOUNT = ethers.utils.parseEther("10000000");
  * -Check expireBlock must be equal to block.number + withdrawalBlockWindow
  *
  * SetOperator:
- * Should not allow call from address other than factory
- * Only factory can call
- * Should be able to set a operator as factory (operator is public we can check with the getter)
+ * -Should not allow call from address other than factory
+ * -Only factory can call
+ * -Should be able to set a operator as factory (operator is public we can check with the getter)
  *
  * CreateRedistributionStakedPosition:
  * Should not allow call from address other than factory
@@ -323,6 +323,55 @@ describe("CT redistribution", async () => {
       expect(
         (await fixture.redistribution.expireBlock()).toString()
       ).to.be.equal(expectedExpireBlock.toString());
+    });
+  });
+
+  /**
+   * SetOperator testing
+   */
+
+  describe("SetOperator testing", async () => {
+    let fixture: FixtureWithRedistribution;
+    beforeEach(async () => {
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const baseFixture = await getFixture();
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(0, 5)
+          .map((a) => a.address);
+        const accountAmounts = distributionAccounts.map(() =>
+          // ethers.utils.parseEther(`${i + 1}`).mul(500_000)
+          ethers.utils.parseEther(`500000`)
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts,
+          accountAmounts,
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      fixture = await loadFixture(deployFunc);
+    });
+
+    it("Should not allow call from address other than factory", async () => {
+      await expect(
+        fixture.redistribution.setOperator(fixture.accounts[0].address)
+      ).to.be.revertedWithCustomError(fixture.redistribution, "OnlyFactory");
+    });
+
+    it("Should be able to set a operator as factory", async () => {
+      await fixture.factory.callAny(
+        fixture.redistribution.address,
+        0,
+        fixture.redistribution.interface.encodeFunctionData("setOperator", [
+          fixture.accounts[0].address,
+        ])
+      );
+      expect(await fixture.redistribution.operator()).to.be.equal(
+        fixture.accounts[0].address
+      );
     });
   });
 
