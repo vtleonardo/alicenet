@@ -6,6 +6,15 @@ export class InitializerArgsError extends Error {
     this.name = "InitializerArgsError";
   }
 }
+export interface DistributionUserData {
+  address: string;
+  amount: string;
+}
+export interface RedistributionDeploymentData {
+  withdrawalBlockWindow: string;
+  maxRedistributionAmount: string;
+  accounts: DistributionUserData[];
+}
 
 export interface ArgData {
   [key: string]:

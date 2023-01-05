@@ -1,6 +1,6 @@
 import toml from "@iarna/toml";
 import { spawn } from "child_process";
-import { BigNumber, ContractTransaction } from "ethers";
+import { BigNumber, BytesLike, ContractTransaction } from "ethers";
 import fs from "fs";
 import { task, types } from "hardhat/config";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
@@ -8,16 +8,27 @@ import { HardhatRuntimeEnvironment } from "hardhat/types";
 import axios from "axios";
 import {
   encodeMultiCallArgs,
+  getEventVar,
   MultiCallArgsStruct,
 } from "../lib/alicenetFactory";
-import { DEFAULT_CONFIG_FILE_PATH } from "../lib/constants";
+import {
+  CONTRACT_ADDR,
+  DEFAULT_CONFIG_FILE_PATH,
+  EVENT_DEPLOYED_RAW,
+} from "../lib/constants";
 
-import { DeploymentConfigWrapper } from "../lib/deployment/interfaces";
+import {
+  DeploymentConfigWrapper,
+  DistributionUserData,
+  RedistributionDeploymentData,
+} from "../lib/deployment/interfaces";
 import {
   getGasPrices,
   parseWaitConfirmationInterval,
   promptCheckDeploymentArgs,
   readDeploymentConfig,
+  readJSON,
+  verifyContract,
   writeDeploymentConfig,
 } from "../lib/deployment/utils";
 
@@ -1748,6 +1759,250 @@ task("update-alicenet-node-version", "Set the Canonical AliceNet Node Version")
       throw new Error(`Receipt indicates failure: ${rept}`);
     }
     console.log("Done");
+  });
+
+task("deploy-distribution-contract", "Deploy a distribution contract")
+  .addParam(
+    "factoryAddress",
+    "the default factory address from factoryState will be used if not set"
+  )
+  .addParam(
+    "configFile",
+    "configuration json file that contains the addresses and amounts to distribute and the constructor parameters"
+  )
+  .addFlag("verify", "try to automatically verify contracts on etherscan")
+  .addOptionalParam(
+    "waitConfirmation",
+    "wait specified number of blocks between transactions",
+    0,
+    types.int
+  )
+  .setAction(async (taskArgs, hre) => {
+    const waitConfirmationsBlocks = await parseWaitConfirmationInterval(
+      taskArgs.waitConfirmation,
+      hre
+    );
+    const { ethers } = hre;
+    const factory = await ethers.getContractAt(
+      "AliceNetFactory",
+      taskArgs.factoryAddress
+    );
+
+    try {
+      await factory.getALCAAddress();
+    } catch (e) {
+      throw new Error(`couldn't connect to alicenet factory address ${e}`);
+    }
+
+    const deploymentConfig: RedistributionDeploymentData = readJSON(
+      taskArgs.configFile
+    );
+
+    const constructorArgs = [
+      deploymentConfig.withdrawalBlockWindow,
+      hre.ethers.utils
+        .parseEther(deploymentConfig.maxRedistributionAmount)
+        .toString(),
+      deploymentConfig.accounts.map(
+        (account: DistributionUserData): string => account.address
+      ),
+      deploymentConfig.accounts.map((account: DistributionUserData): string =>
+        hre.ethers.utils.parseEther(account.amount).toString()
+      ),
+    ];
+
+    let promptMessage = `ALL AMOUNTS IN THE CONFIG FILE SHOULD NOT INCLUDE THE 18 DECIMAL PLACES! THEY WILL BE CONVERTED DOWN BELOW! IS THIS THE CASE ? (y/n)\n`;
+    await promptCheckDeploymentArgs(promptMessage);
+
+    const constructorArgsInWei: RedistributionDeploymentData = {
+      withdrawalBlockWindow: constructorArgs[0] as string,
+      maxRedistributionAmount: constructorArgs[1] as string,
+      accounts: (constructorArgs[2] as string[]).map(
+        (address: string, index: number) => {
+          return {
+            address,
+            amount: constructorArgs[3][index],
+          };
+        }
+      ),
+    };
+    console.log(constructorArgsInWei);
+    console.log("FINISHED CONVERTING ALL VALUES TO WEI (18 DECIMAL PLACES)");
+    promptMessage = `Do you want to deploy distribution with arguments shown above? (y/n)\n`;
+    await promptCheckDeploymentArgs(promptMessage);
+
+    const deploymentByteCode = (
+      await hre.ethers.getContractFactory("Redistribution")
+    ).getDeployTransaction(
+      constructorArgsInWei.withdrawalBlockWindow,
+      constructorArgsInWei.maxRedistributionAmount,
+      constructorArgsInWei.accounts.map(
+        (account: DistributionUserData): string =>
+          hre.ethers.utils.getAddress(account.address.toLowerCase())
+      ),
+      constructorArgsInWei.accounts.map(
+        (account: DistributionUserData): string => account.amount
+      )
+    ).data as BytesLike;
+
+    const txResponse = await factory.deployCreate(
+      deploymentByteCode,
+      await getGasPrices(hre.ethers)
+    );
+
+    const receipt = await txResponse.wait(waitConfirmationsBlocks);
+    const contractAddress = getEventVar(
+      receipt,
+      EVENT_DEPLOYED_RAW,
+      CONTRACT_ADDR
+    );
+    console.log(`Distribution contract deployed at ${contractAddress}`);
+    if (taskArgs.verify) {
+      await verifyContract(hre, contractAddress, constructorArgs);
+    }
+  });
+
+task(
+  "create-stake-distribution-contract",
+  "Deposit ALCA and create stake position for distribution contract"
+)
+  .addParam(
+    "factoryAddress",
+    "the default factory address from factoryState will be used if not set"
+  )
+  .addParam("distributionAddress", "the distribution contract address")
+  .addOptionalParam(
+    "waitConfirmation",
+    "wait specified number of blocks between transactions",
+    0,
+    types.int
+  )
+  .setAction(async (taskArgs, hre) => {
+    const waitConfirmationsBlocks = await parseWaitConfirmationInterval(
+      taskArgs.waitConfirmation,
+      hre
+    );
+    const { ethers } = hre;
+    const factory = await ethers.getContractAt(
+      "AliceNetFactory",
+      taskArgs.factoryAddress
+    );
+
+    try {
+      await factory.getALCAAddress();
+    } catch (e) {
+      throw new Error(`couldn't connect to alicenet factory address ${e}`);
+    }
+
+    const distribution = await ethers.getContractAt(
+      "Redistribution",
+      taskArgs.distributionAddress
+    );
+
+    try {
+      await distribution.getDistributionLeft();
+    } catch (e) {
+      throw new Error(
+        `couldn't connect to redistribution contract with address ${taskArgs.distributionAddress}: ${e}`
+      );
+    }
+
+    const promptMessage = `Do you want to transfer and create the stake position with ${await distribution.maxRedistributionAmount()} ALCA? (y/n)\n`;
+    await promptCheckDeploymentArgs(promptMessage);
+
+    const alca = await ethers.getContractAt(
+      "ALCA",
+      await factory.getALCAAddress()
+    );
+
+    const input1 = alca.interface.encodeFunctionData("approve", [
+      distribution.address,
+      await distribution.maxRedistributionAmount(),
+    ]);
+
+    const input2 = distribution.interface.encodeFunctionData(
+      "createRedistributionStakedPosition"
+    );
+
+    const multiCallArgs: MultiCallArgsStruct[] = [
+      {
+        target: alca.address,
+        value: 0,
+        data: input1,
+      },
+      {
+        target: distribution.address,
+        value: 0,
+        data: input2,
+      },
+    ];
+
+    await (
+      await factory.multiCall(multiCallArgs, await getGasPrices(hre.ethers))
+    ).wait(waitConfirmationsBlocks);
+
+    console.log("Stake Position created!");
+  });
+
+task(
+  "add-operator-distribution-contract",
+  "Set the operator address to the distribution contract"
+)
+  .addParam(
+    "factoryAddress",
+    "the default factory address from factoryState will be used if not set"
+  )
+  .addParam("distributionAddress", "the distribution contract address")
+  .addParam("operatorAddress", "the operator address")
+  .addOptionalParam(
+    "waitConfirmation",
+    "wait specified number of blocks between transactions",
+    0,
+    types.int
+  )
+  .setAction(async (taskArgs, hre) => {
+    const waitConfirmationsBlocks = await parseWaitConfirmationInterval(
+      taskArgs.waitConfirmation,
+      hre
+    );
+    const { ethers } = hre;
+    const factory = await ethers.getContractAt(
+      "AliceNetFactory",
+      taskArgs.factoryAddress
+    );
+
+    try {
+      await factory.getALCAAddress();
+    } catch (e) {
+      throw new Error(`couldn't connect to alicenet factory address ${e}`);
+    }
+
+    const distribution = await ethers.getContractAt(
+      "Redistribution",
+      taskArgs.distributionAddress
+    );
+
+    try {
+      await distribution.getDistributionLeft();
+    } catch (e) {
+      throw new Error(
+        `couldn't connect to redistribution contract with address ${taskArgs.distributionAddress}: ${e}`
+      );
+    }
+    const promptMessage = `Do you want to set ${taskArgs.operatorAddress} as the distribution operator? (y/n)\n`;
+    await promptCheckDeploymentArgs(promptMessage);
+
+    await (
+      await factory.callAny(
+        distribution.address,
+        0,
+        distribution.interface.encodeFunctionData("setOperator", [
+          taskArgs.operatorAddress,
+        ])
+      )
+    ).wait(waitConfirmationsBlocks);
+
+    console.log(`Operator set to ${taskArgs.operatorAddress}`);
   });
 
 async function mintALCATo(

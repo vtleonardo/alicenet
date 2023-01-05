@@ -1,4 +1,6 @@
 {
+  "withdrawalBlockWindow": 10000,
+  "maxRedistributionAmount": "1000000",
   "accounts": [
     {
       "address": "0x0b1F9c2b7bED6Db83295c7B5158E3806d67eC5b0",
