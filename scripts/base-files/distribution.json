@@ -1,0 +1,24 @@
+{
+  "accounts": [
+    {
+      "address": "0x0b1F9c2b7bED6Db83295c7B5158E3806d67eC5b0",
+      "amount": "10000"
+    },
+    {
+      "address": "0x0b1F9c2b7bED6Db83295c7B5158E3806d67eC5b1",
+      "amount": "20000"
+    },
+    {
+      "address": "0x0b1F9c2b7bED6Db83295c7B5158E3806d67eC5b2",
+      "amount": "30000"
+    },
+    {
+      "address": "0x0b1F9c2b7bED6Db83295c7B5158E3806d67eC5b3",
+      "amount": "40000"
+    },
+    {
+      "address": "0x0b1F9c2b7bED6Db83295c7B5158E3806d67eC5b4",
+      "amount": "50000"
+    }
+  ]
+}

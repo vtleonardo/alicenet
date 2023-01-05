@@ -29,6 +29,7 @@ contract Redistribution is
     error WithdrawalWindowExpired();
     error WithdrawalWindowNotExpiredYet();
     error IncorrectLength();
+    error ZeroAmountNotAllowed();
     error InvalidAllowanceSum(uint256 totalAllowance, uint256 maxRedistributionAmount);
     error DistributionTokenAlreadyCreated();
     error PositionAlreadyRegisteredOrTaken();
@@ -36,8 +37,8 @@ contract Redistribution is
     error NotEnoughFundsToRedistribute(uint256 withdrawAmount, uint256 currentAmount);
     error PositionAlreadyTaken();
 
-    // The amount of blocks that the withdraw position will be locked against burning. This is
-    // approximately 6 months.
+    /// The amount of blocks that the withdraw position will be locked against burning. This is
+    /// approximately 6 months.
     uint256 public constant MAX_MINT_LOCK = 1051200;
     /// The total amount of ALCA that can be redistributed to accounts via this contract.
     uint256 public immutable maxRedistributionAmount;
@@ -77,11 +78,17 @@ contract Redistribution is
         address[] memory allowedAddresses,
         uint248[] memory allowedAmounts
     ) ImmutableFactory(msg.sender) ImmutableALCA() ImmutablePublicStaking() ImmutableFoundation() {
-        if (allowedAddresses.length != allowedAmounts.length) {
+        if (allowedAddresses.length != allowedAmounts.length || allowedAddresses.length == 0) {
             revert IncorrectLength();
         }
         uint256 totalAllowance = 0;
         for (uint256 i = 0; i < allowedAddresses.length; i++) {
+            if (allowedAddresses[i] == address(0) || _accounts[allowedAddresses[i]].balance > 0) {
+                revert PositionAlreadyRegisteredOrTaken();
+            }
+            if (allowedAmounts[i] == 0) {
+                revert ZeroAmountNotAllowed();
+            }
             _accounts[allowedAddresses[i]] = accountInfo(allowedAmounts[i], false);
             totalAllowance += allowedAmounts[i];
         }
@@ -135,6 +142,9 @@ contract Redistribution is
         address user,
         uint248 distributionAmount
     ) public onlyOperator notExpired {
+        if (distributionAmount == 0) {
+            revert ZeroAmountNotAllowed();
+        }
         accountInfo memory account = _accounts[user];
         if (account.balance > 0 || account.isPositionTaken) {
             revert PositionAlreadyRegisteredOrTaken();
