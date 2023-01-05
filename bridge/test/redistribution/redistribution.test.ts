@@ -10,18 +10,18 @@ import {
   getFixture,
 } from "../setup";
 
-const withdrawalBlockWindow = 172800; // 1 month block window
-const maxDistributionAmount = ethers.utils.parseEther("10000000");
+const DEFAULT_WITHDRAWAL_BLOCK_WINDOW = 172800; // 1 month block window
+const DEFAULT_MAX_DISTRIBUTION_AMOUNT = ethers.utils.parseEther("10000000");
 
 /**
  * Constructor:
- * Should not allow sum of allowedAmounts to be greater than the maxRedistributionAmount
- * Should not allow addresses and amounts with different length
- * Should not allow length zero in any of the parameters
- * Should not allow duplicate addresses and address zero
- * Should not allow distribution amount 0
- * Check totalAllowances must be equal to the sum of allowedAmounts
- * Check expireBlock must be equal to block.number + withdrawalBlockWindow
+ * -Should not allow sum of allowedAmounts to be greater than the maxRedistributionAmount
+ * -Should not allow addresses and amounts with different length
+ * -Should not allow length zero in any of the parameters
+ * -Should not allow duplicate addresses and address zero
+ * -Should not allow distribution amount 0
+ * -Check totalAllowances must be equal to the sum of allowedAmounts
+ * -Check expireBlock must be equal to block.number + withdrawalBlockWindow
  *
  * SetOperator:
  * Should not allow call from address other than factory
@@ -49,21 +49,18 @@ interface FixtureWithRedistribution extends Fixture {
   accounts: SignerWithAddress[];
 }
 
-async function deployRedistribution(): Promise<FixtureWithRedistribution> {
-  const fixture = await getFixture();
-  const accounts = await ethers.getSigners();
-  const accountAddresses: string[] = [];
-  const accountAmounts: BigInt[] = [];
-  for (let i = 0; i < 5; i++) {
-    accountAddresses.push(accounts[i].address);
-    accountAmounts.push(
-      ethers.utils.parseEther(`${i + 1}`).toBigInt() * 500_000n
-    );
-  }
+async function deployRedistribution(
+  fixture: Fixture,
+  accounts: SignerWithAddress[],
+  distributionAccounts: string[],
+  accountAmounts: BigNumber[],
+  withdrawalBlockWindow: number,
+  maxDistributionAmount: BigNumber
+): Promise<FixtureWithRedistribution> {
   const tx = await deployCreate("Redistribution", fixture.factory, ethers, [
     withdrawalBlockWindow,
     maxDistributionAmount,
-    accountAddresses,
+    distributionAccounts,
     accountAmounts,
   ]);
   const redistributionAddress = await getContractAddressFromDeployedRawEvent(
@@ -96,50 +93,303 @@ async function deployRedistribution(): Promise<FixtureWithRedistribution> {
 }
 
 describe("CT redistribution", async () => {
-  let fixture: FixtureWithRedistribution;
-  beforeEach(async () => {
-    fixture = await loadFixture(deployRedistribution);
+  /**
+   * Constructor testing
+   */
+  describe("Constructor testing", async () => {
+    it("Should have correct maxRedistributionAmount", async () => {
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const baseFixture = await getFixture();
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(0, 5)
+          .map((a) => a.address);
+        const accountAmounts = distributionAccounts.map(() =>
+          ethers.utils.parseEther(`500000`)
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts,
+          accountAmounts,
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      const fixture = await loadFixture(deployFunc);
+      expect(
+        (await fixture.redistribution.maxRedistributionAmount()).toString()
+      ).to.be.equal(DEFAULT_MAX_DISTRIBUTION_AMOUNT.toString());
+    });
+
+    it("Should not allow sum of allowedAmounts to be greater than the maxRedistributionAmount", async () => {
+      const baseFixture = await getFixture();
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(0, 5)
+          .map((a) => a.address);
+        const accountAmounts = distributionAccounts.map(() =>
+          // this is 5_000_000 for each of the 5 accounts, which is higher than the 10_000_000 max
+          ethers.utils.parseEther(`5000000`)
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts,
+          accountAmounts,
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+
+      await expect(loadFixture(deployFunc)).to.be.revertedWithCustomError(
+        baseFixture.factory,
+        "CodeSizeZero"
+      );
+    });
+
+    it("Should not allow addresses and amounts with different length", async () => {
+      const baseFixture = await getFixture();
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(0, 5)
+          .map((a) => a.address);
+        const accountAmounts = distributionAccounts.map(() =>
+          ethers.utils.parseEther(`500000`)
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts, // passing 5
+          accountAmounts.slice(0, 4), // passing 4
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      await expect(loadFixture(deployFunc)).to.be.revertedWithCustomError(
+        baseFixture.factory,
+        "CodeSizeZero"
+      );
+    });
+
+    it("Should not allow length zero in any of the parameters", async () => {
+      const baseFixture = await getFixture();
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const allAccounts = await ethers.getSigners();
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          [], // empty
+          [], // empty
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      await expect(loadFixture(deployFunc)).to.be.revertedWithCustomError(
+        baseFixture.factory,
+        "CodeSizeZero"
+      );
+    });
+
+    it("Should not allow duplicate addresses", async () => {
+      const baseFixture = await getFixture();
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(0, 4)
+          .map((a) => a.address);
+        distributionAccounts.push(distributionAccounts[0]); // duplicated
+        const accountAmounts = distributionAccounts.map(() =>
+          ethers.utils.parseEther(`500000`)
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts,
+          accountAmounts,
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      await expect(loadFixture(deployFunc)).to.be.revertedWithCustomError(
+        baseFixture.factory,
+        "CodeSizeZero"
+      );
+    });
+
+    it("Should not allow address zero", async () => {
+      const baseFixture = await getFixture();
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(0, 5)
+          .map((a) => a.address);
+        // address 0
+        distributionAccounts[0] = "0x0000000000000000000000000000000000000000";
+        const accountAmounts = distributionAccounts.map(() =>
+          ethers.utils.parseEther(`500000`)
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts,
+          accountAmounts,
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      await expect(loadFixture(deployFunc)).to.be.revertedWithCustomError(
+        baseFixture.factory,
+        "CodeSizeZero"
+      );
+    });
+
+    it("Should not allow distribution amount 0", async () => {
+      const baseFixture = await getFixture();
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(0, 5)
+          .map((a) => a.address);
+        const accountAmounts = distributionAccounts.map(
+          () => ethers.utils.parseEther(`0`) // amount 0
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts,
+          accountAmounts,
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      await expect(loadFixture(deployFunc)).to.be.revertedWithCustomError(
+        baseFixture.factory,
+        "CodeSizeZero"
+      );
+    });
+
+    it("totalAllowances must be equal to the sum of allowedAmounts", async () => {
+      const baseFixture = await getFixture();
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(0, 5)
+          .map((a) => a.address);
+        const accountAmounts = distributionAccounts.map(() =>
+          ethers.utils.parseEther(`500000`)
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts,
+          accountAmounts,
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      const fixture = await loadFixture(deployFunc);
+      const totalAmounts = ethers.utils.parseEther(`500000`).mul(5);
+      expect(
+        (await fixture.redistribution.totalAllowances()).toString()
+      ).to.be.equal(totalAmounts.toString());
+    });
+
+    it("expireBlock must be equal to block.number + withdrawalBlockWindow", async () => {
+      const baseFixture = await getFixture();
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(0, 5)
+          .map((a) => a.address);
+        const accountAmounts = distributionAccounts.map(() =>
+          ethers.utils.parseEther(`500000`)
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts,
+          accountAmounts,
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      const fixture = await loadFixture(deployFunc);
+      const latestBlock = await ethers.provider.getBlock("latest");
+      const expectedExpireBlock =
+        latestBlock.number + DEFAULT_WITHDRAWAL_BLOCK_WINDOW - 2;
+      expect(
+        (await fixture.redistribution.expireBlock()).toString()
+      ).to.be.equal(expectedExpireBlock.toString());
+    });
   });
 
-  it("should have correct maxRedistributionAmount", async () => {
-    const maxRedistributionAmount =
-      await fixture.redistribution.maxRedistributionAmount();
-    expect(maxRedistributionAmount).to.equal(maxDistributionAmount);
-  });
+  // first tests
 
-  it("should not allow minting a position without an operator", async () => {
-    await expect(
-      fixture.redistribution
-        .connect(fixture.accounts[5])
-        .registerAddressForDistribution(
-          fixture.accounts[6].getAddress(),
-          100_000
+  describe("First round of tests", async () => {
+    let fixture: FixtureWithRedistribution;
+    beforeEach(async () => {
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const baseFixture = await getFixture();
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(0, 5)
+          .map((a) => a.address);
+        const accountAmounts = distributionAccounts.map(() =>
+          // ethers.utils.parseEther(`${i + 1}`).mul(500_000)
+          ethers.utils.parseEther(`500000`)
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts,
+          accountAmounts,
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      fixture = await loadFixture(deployFunc);
+    });
+
+    it("should have correct maxRedistributionAmount", async () => {
+      const maxRedistributionAmount =
+        await fixture.redistribution.maxRedistributionAmount();
+      expect(maxRedistributionAmount).to.equal(DEFAULT_MAX_DISTRIBUTION_AMOUNT);
+    });
+
+    it("should not allow minting a position without an operator", async () => {
+      await expect(
+        fixture.redistribution
+          .connect(fixture.accounts[5])
+          .registerAddressForDistribution(fixture.accounts[6].address, 100_000)
+      ).to.revertedWithCustomError(fixture.redistribution, "NotOperator");
+    });
+
+    it("should be able to get tokenID for total staked position", async () => {
+      expect((await fixture.redistribution.tokenID()).toBigInt()).to.equal(1n);
+    });
+
+    it("should register a position as operator", async () => {
+      const operator = fixture.accounts[5];
+      await fixture.factory.callAny(
+        fixture.redistribution.address,
+        0,
+        fixture.redistribution.interface.encodeFunctionData("setOperator", [
+          operator.address,
+        ])
+      );
+
+      await fixture.redistribution
+        .connect(operator)
+        .registerAddressForDistribution(fixture.accounts[6].address, 100_000);
+
+      expect(
+        await fixture.redistribution.getRedistributionInfo(
+          fixture.accounts[6].address
         )
-    ).to.revertedWithCustomError(fixture.redistribution, "NotOperator");
-  });
-
-  it("should be able to get tokenID for total staked position", async () => {
-    expect((await fixture.redistribution.tokenID()).toBigInt()).to.equal(1n);
-  });
-
-  it("should register a position as operator", async () => {
-    const operator = fixture.accounts[5];
-    await fixture.factory.callAny(
-      fixture.redistribution.address,
-      0,
-      fixture.redistribution.interface.encodeFunctionData("setOperator", [
-        operator.address,
-      ])
-    );
-
-    await fixture.redistribution
-      .connect(operator)
-      .registerAddressForDistribution(fixture.accounts[6].address, 100_000);
-
-    expect(
-      await fixture.redistribution.getRedistributionInfo(
-        fixture.accounts[6].address
-      )
-    ).to.be.deep.equal([BigNumber.from(100_000), false]);
+      ).to.be.deep.equal([BigNumber.from(100_000), false]);
+    });
   });
 });
