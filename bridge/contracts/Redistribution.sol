@@ -38,7 +38,7 @@ contract Redistribution is
 
     // The amount of blocks that the withdraw position will be locked against burning. This is
     // approximately 6 months.
-    uint256 internal constant _MAX_MINT_LOCK = 1051200;
+    uint256 public constant MAX_MINT_LOCK = 1051200;
     /// The total amount of ALCA that can be redistributed to accounts via this contract.
     uint256 public immutable maxRedistributionAmount;
     /// The block number that the withdrawal window will expire.
@@ -172,7 +172,7 @@ contract Redistribution is
             revert NotEnoughFundsToRedistribute(alcaBalance, account.balance);
         }
         alca.approve(_publicStakingAddress(), alcaBalance);
-        staking.mintTo(to, account.balance, _MAX_MINT_LOCK);
+        staking.mintTo(to, account.balance, MAX_MINT_LOCK);
         uint256 remainder = alcaBalance - account.balance;
         if (remainder > 0) {
             tokenID = staking.mint(remainder);
