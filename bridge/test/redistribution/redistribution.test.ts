@@ -8,6 +8,7 @@ import {
   Fixture,
   getContractAddressFromDeployedRawEvent,
   getFixture,
+  mineBlocks,
 } from "../setup";
 
 const DEFAULT_WITHDRAWAL_BLOCK_WINDOW = 172800; // 1 month block window
@@ -69,21 +70,6 @@ async function deployRedistribution(
   const redistribution = await ethers.getContractAt(
     "Redistribution",
     redistributionAddress
-  );
-  await fixture.factory.callAny(
-    fixture.alca.address,
-    0,
-    fixture.alca.interface.encodeFunctionData("approve", [
-      redistribution.address,
-      maxDistributionAmount,
-    ])
-  );
-  await fixture.factory.callAny(
-    redistribution.address,
-    0,
-    redistribution.interface.encodeFunctionData(
-      "createRedistributionStakedPosition"
-    )
   );
   return {
     ...fixture,
@@ -319,7 +305,7 @@ describe("CT redistribution", async () => {
       const fixture = await loadFixture(deployFunc);
       const latestBlock = await ethers.provider.getBlock("latest");
       const expectedExpireBlock =
-        latestBlock.number + DEFAULT_WITHDRAWAL_BLOCK_WINDOW - 2;
+        latestBlock.number + DEFAULT_WITHDRAWAL_BLOCK_WINDOW;
       expect(
         (await fixture.redistribution.expireBlock()).toString()
       ).to.be.equal(expectedExpireBlock.toString());
@@ -375,6 +361,119 @@ describe("CT redistribution", async () => {
     });
   });
 
+  /**
+   * CreateRedistributionStakedPosition testing
+   */
+
+  describe("CreateRedistributionStakedPosition testing", async () => {
+    let fixture: FixtureWithRedistribution;
+    beforeEach(async () => {
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const baseFixture = await getFixture();
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(0, 5)
+          .map((a) => a.address);
+        const accountAmounts = distributionAccounts.map(() =>
+          // ethers.utils.parseEther(`${i + 1}`).mul(500_000)
+          ethers.utils.parseEther(`500000`)
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts,
+          accountAmounts,
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      fixture = await loadFixture(deployFunc);
+    });
+
+    /**
+     *
+     *
+     * Should create a position if all the conditions are met, check tokenID and the position properties match the maxRedistributionAmount
+     * Should not allow to create a position if it already exists
+     */
+
+    it("Should not allow call from address other than factory", async () => {
+      await expect(
+        fixture.redistribution.createRedistributionStakedPosition()
+      ).to.be.revertedWithCustomError(fixture.redistribution, "OnlyFactory");
+    });
+
+    it("Only factory can call", async () => {
+      await expect(
+        fixture.factory.callAny(
+          fixture.alca.address,
+          0,
+          fixture.alca.interface.encodeFunctionData("approve", [
+            fixture.redistribution.address,
+            DEFAULT_MAX_DISTRIBUTION_AMOUNT,
+          ])
+        )
+      ).to.be.fulfilled;
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "createRedistributionStakedPosition"
+          )
+        )
+      ).to.be.fulfilled;
+      const tokenID = await fixture.redistribution.tokenID();
+      expect(tokenID.toString()).to.be.not.equal("0");
+      expect(await fixture.publicStaking.ownerOf(tokenID)).to.be.equal(
+        fixture.redistribution.address
+      );
+    });
+
+    it("Cannot be called after expiration", async () => {
+      await expect(
+        fixture.factory.callAny(
+          fixture.alca.address,
+          0,
+          fixture.alca.interface.encodeFunctionData("approve", [
+            fixture.redistribution.address,
+            DEFAULT_MAX_DISTRIBUTION_AMOUNT,
+          ])
+        )
+      ).to.be.fulfilled;
+
+      // lets make it expire
+      await mineBlocks(
+        BigNumber.from(DEFAULT_WITHDRAWAL_BLOCK_WINDOW).toBigInt()
+      );
+
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "createRedistributionStakedPosition"
+          )
+        )
+      ).to.be.revertedWithCustomError(
+        fixture.redistribution,
+        "WithdrawalWindowExpired"
+      );
+    });
+
+    it("Should fail if there was not alca approval from the factory", async () => {
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "createRedistributionStakedPosition"
+          )
+        )
+      ).to.be.revertedWith("ERC20: insufficient allowance");
+    });
+  });
+
   // first tests
 
   describe("First round of tests", async () => {
@@ -414,10 +513,6 @@ describe("CT redistribution", async () => {
           .connect(fixture.accounts[5])
           .registerAddressForDistribution(fixture.accounts[6].address, 100_000)
       ).to.revertedWithCustomError(fixture.redistribution, "NotOperator");
-    });
-
-    it("should be able to get tokenID for total staked position", async () => {
-      expect((await fixture.redistribution.tokenID()).toBigInt()).to.equal(1n);
     });
 
     it("should register a position as operator", async () => {
