@@ -9,7 +9,7 @@ import "hardhat-contract-sizer";
 import "hardhat-deploy";
 import "hardhat-gas-reporter";
 import "hardhat-log-remover";
-import "hardhat-preprocessor";
+// import "hardhat-preprocessor";
 import "hardhat-storage-layout";
 import "hardhat/config";
 import { HardhatUserConfig, task } from "hardhat/config";
@@ -270,21 +270,21 @@ const config: HardhatUserConfig = {
       },
     ],
   },
-  preprocess: {
-    eachLine: (hre) => ({
-      transform: (line: string) => {
-        if (line.match(/^\s*import /i)) {
-          for (const [from, to] of getRemappings()) {
-            if (line.includes(from)) {
-              line = line.replace(from, to);
-              break;
-            }
-          }
-        }
-        return line;
-      },
-    }),
-  },
+  //   preprocess: {
+  //     eachLine: (hre) => ({
+  //       transform: (line: string) => {
+  //         if (line.match(/^\s*import /i)) {
+  //           for (const [from, to] of getRemappings()) {
+  //             if (line.includes(from)) {
+  //               line = line.replace(from, to);
+  //               break;
+  //             }
+  //           }
+  //         }
+  //         return line;
+  //       },
+  //     }),
+  //   },
   paths: {
     sources: "./contracts",
     tests: "./test",

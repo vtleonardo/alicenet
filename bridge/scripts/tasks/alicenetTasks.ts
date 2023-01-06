@@ -4,6 +4,7 @@ import { BigNumber, BytesLike, ContractTransaction } from "ethers";
 import fs from "fs";
 import { task, types } from "hardhat/config";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
+import os from "os";
 // import { ValidatorPool } from "../../typechain-types";
 import axios from "axios";
 import {
@@ -28,7 +29,6 @@ import {
   promptCheckDeploymentArgs,
   readDeploymentConfig,
   readJSON,
-  verifyContract,
   writeDeploymentConfig,
 } from "../lib/deployment/utils";
 
@@ -1798,30 +1798,20 @@ task("deploy-distribution-contract", "Deploy a distribution contract")
       taskArgs.configFile
     );
 
-    const constructorArgs = [
-      deploymentConfig.withdrawalBlockWindow,
-      hre.ethers.utils
-        .parseEther(deploymentConfig.maxRedistributionAmount)
-        .toString(),
-      deploymentConfig.accounts.map(
-        (account: DistributionUserData): string => account.address
-      ),
-      deploymentConfig.accounts.map((account: DistributionUserData): string =>
-        hre.ethers.utils.parseEther(account.amount).toString()
-      ),
-    ];
-
-    let promptMessage = `ALL AMOUNTS IN THE CONFIG FILE SHOULD NOT INCLUDE THE 18 DECIMAL PLACES! THEY WILL BE CONVERTED DOWN BELOW! IS THIS THE CASE ? (y/n)\n`;
+    console.log(deploymentConfig);
+    let promptMessage = `ALL AMOUNTS IN THE CONFIG FILE ABOVE SHOULD NOT INCLUDE THE 18 DECIMAL PLACES! THEY WILL BE CONVERTED DOWN BELOW! IS THIS THE CASE ? (y/n)\n`;
     await promptCheckDeploymentArgs(promptMessage);
 
     const constructorArgsInWei: RedistributionDeploymentData = {
-      withdrawalBlockWindow: constructorArgs[0] as string,
-      maxRedistributionAmount: constructorArgs[1] as string,
-      accounts: (constructorArgs[2] as string[]).map(
-        (address: string, index: number) => {
+      withdrawalBlockWindow: deploymentConfig.withdrawalBlockWindow,
+      maxRedistributionAmount: hre.ethers.utils
+        .parseEther(deploymentConfig.maxRedistributionAmount)
+        .toString(),
+      accounts: deploymentConfig.accounts.map(
+        (account): DistributionUserData => {
           return {
-            address,
-            amount: constructorArgs[3][index],
+            address: hre.ethers.utils.getAddress(account.address.toLowerCase()),
+            amount: hre.ethers.utils.parseEther(account.amount).toString(),
           };
         }
       ),
@@ -1837,8 +1827,7 @@ task("deploy-distribution-contract", "Deploy a distribution contract")
       constructorArgsInWei.withdrawalBlockWindow,
       constructorArgsInWei.maxRedistributionAmount,
       constructorArgsInWei.accounts.map(
-        (account: DistributionUserData): string =>
-          hre.ethers.utils.getAddress(account.address.toLowerCase())
+        (account: DistributionUserData): string => account.address
       ),
       constructorArgsInWei.accounts.map(
         (account: DistributionUserData): string => account.amount
@@ -1858,7 +1847,46 @@ task("deploy-distribution-contract", "Deploy a distribution contract")
     );
     console.log(`Distribution contract deployed at ${contractAddress}`);
     if (taskArgs.verify) {
-      await verifyContract(hre, contractAddress, constructorArgs);
+      const addresses: string[] = [];
+      const amounts: string[] = [];
+      for (let i = 0; i < constructorArgsInWei.accounts.length; i++) {
+        addresses.push(constructorArgsInWei.accounts[i].address);
+        amounts.push(constructorArgsInWei.accounts[i].amount);
+      }
+      let tmpDir;
+      try {
+        tmpDir = fs.mkdtempSync(os.tmpdir());
+        const saveStr = `
+        module.exports = [
+            ${JSON.stringify(constructorArgsInWei.withdrawalBlockWindow)},
+            ${JSON.stringify(constructorArgsInWei.maxRedistributionAmount)},
+            ${JSON.stringify(addresses)},
+            ${JSON.stringify(amounts)},
+        ];
+        `;
+        fs.writeFileSync(`${tmpDir}/args.js`, saveStr);
+        await hre.run("verify", {
+          network: hre.network.name,
+          address: contractAddress,
+          constructorArgs: `${tmpDir}/args.js`,
+          contract: "contracts/Redistribution.sol:Redistribution",
+        });
+      } catch (error) {
+        console.log(
+          `Failed to automatically verify ${contractAddress} please do it manually!`
+        );
+        console.log(error);
+      } finally {
+        try {
+          if (tmpDir) {
+            fs.rmSync(tmpDir, { recursive: true });
+          }
+        } catch (e) {
+          console.error(
+            `An error has occurred while removing the temp folder at ${tmpDir}. Please remove it manually. Error: ${e}`
+          );
+        }
+      }
     }
   });
 
