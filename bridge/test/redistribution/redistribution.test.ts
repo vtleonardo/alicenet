@@ -797,7 +797,6 @@ describe("CT redistribution", async () => {
         fixture.redistribution.sendExpiredFundsToFactory()
       ).to.be.revertedWithCustomError(fixture.redistribution, "OnlyFactory");
     });
-
     it("Should allow call from factory address", async () => {
       // lets make it expire
       await mineBlocks(
@@ -814,7 +813,6 @@ describe("CT redistribution", async () => {
         )
       ).to.be.fulfilled;
     });
-
     it("Should not allow call when not expired", async () => {
       await expect(
         fixture.factory.callAny(
@@ -829,8 +827,7 @@ describe("CT redistribution", async () => {
         "WithdrawalWindowNotExpiredYet"
       );
     });
-
-    it("Should emit TokenAlreadyTransferred event if contract is not the owner of the token", async () => {
+    it("Should emit TokenAlreadyTransferred event if contract is there's no token", async () => {
       // lets make it expire
       await mineBlocks(
         BigNumber.from(DEFAULT_WITHDRAWAL_BLOCK_WINDOW).toBigInt()
@@ -846,7 +843,6 @@ describe("CT redistribution", async () => {
         )
       ).to.emit(fixture.redistribution, "TokenAlreadyTransferred");
     });
-
     it("Should transfer all ALCA and ETH funds to factory", async () => {
       // lets make it expire
       await mineBlocks(
@@ -874,8 +870,7 @@ describe("CT redistribution", async () => {
         ).toString()
       ).to.be.equal("0");
     });
-
-    it("Should transfer all ALCA and ETH funds to factory 2", async () => {
+    it("Should transfer all ALCA and ETH funds to factory with distribution of yield", async () => {
       await expect(
         fixture.factory.callAny(
           fixture.alca.address,
@@ -961,10 +956,211 @@ describe("CT redistribution", async () => {
         ).toString()
       ).to.be.equal("0");
     });
+    it("Should transfer any dangling ether or alca back to factory even if the position was transferred", async () => {
+      // lets make it expire
+      await mineBlocks(
+        BigNumber.from(DEFAULT_WITHDRAWAL_BLOCK_WINDOW).toBigInt()
+      );
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "sendExpiredFundsToFactory"
+          )
+        )
+      ).to.be.fulfilled;
+      // trick to send eth to contract that have receive() protected
+      const [admin] = await ethers.getSigners();
+      const testUtils = await (
+        await (await ethers.getContractFactory("TestUtils")).deploy()
+      ).deployed();
+      await admin.sendTransaction({
+        to: testUtils.address,
+        value: ethers.utils.parseEther("1"),
+      });
+      await testUtils.payUnpayable(fixture.redistribution.address);
+      // end of the trick
+      // sending alca
+      await fixture.factory.callAny(
+        fixture.alca.address,
+        0,
+        fixture.alca.interface.encodeFunctionData("transfer", [
+          fixture.redistribution.address,
+          ethers.utils.parseEther("2"),
+        ])
+      );
+      const balanceEthBeforeRedistribution = await ethers.provider.getBalance(
+        fixture.redistribution.address
+      );
+      const balanceALCABeforeRedistribution = await fixture.alca.balanceOf(
+        fixture.redistribution.address
+      );
+      expect(balanceEthBeforeRedistribution).to.equal(
+        ethers.utils.parseEther("1")
+      );
+      expect(balanceALCABeforeRedistribution).to.equal(
+        ethers.utils.parseEther("2")
+      );
+      const foundationETHBalanceBefore = await ethers.provider.getBalance(
+        fixture.foundation.address
+      );
+      const factoryALCABalanceBefore = await fixture.alca.balanceOf(
+        fixture.factory.address
+      );
+      // making sure that can use this function to skim funds
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "sendExpiredFundsToFactory"
+          )
+        )
+      ).to.be.fulfilled;
+      expect(
+        (
+          await ethers.provider.getBalance(fixture.redistribution.address)
+        ).toString()
+      ).to.be.equal("0");
+      expect(
+        (
+          await fixture.alca.balanceOf(fixture.redistribution.address)
+        ).toString()
+      ).to.be.equal("0");
+      expect(
+        await ethers.provider.getBalance(fixture.foundation.address)
+      ).to.be.equal(
+        foundationETHBalanceBefore.add(balanceEthBeforeRedistribution)
+      );
+      expect(await fixture.alca.balanceOf(fixture.factory.address)).to.be.equal(
+        factoryALCABalanceBefore.add(balanceALCABeforeRedistribution)
+      );
+    });
+    it("Should transfer any dangling ether or alca back to factory", async () => {
+      // lets make it expire
+      await mineBlocks(
+        BigNumber.from(DEFAULT_WITHDRAWAL_BLOCK_WINDOW).toBigInt()
+      );
+      // trick to send eth to contract that have receive() protected
+      const [admin] = await ethers.getSigners();
+      const testUtils = await (
+        await (await ethers.getContractFactory("TestUtils")).deploy()
+      ).deployed();
+      await admin.sendTransaction({
+        to: testUtils.address,
+        value: ethers.utils.parseEther("1"),
+      });
+      await testUtils.payUnpayable(fixture.redistribution.address);
+      // end of the trick
+      // sending alca
+      await fixture.factory.callAny(
+        fixture.alca.address,
+        0,
+        fixture.alca.interface.encodeFunctionData("transfer", [
+          fixture.redistribution.address,
+          ethers.utils.parseEther("2"),
+        ])
+      );
+      const balanceEthBeforeRedistribution = await ethers.provider.getBalance(
+        fixture.redistribution.address
+      );
+      const balanceALCABeforeRedistribution = await fixture.alca.balanceOf(
+        fixture.redistribution.address
+      );
+      expect(balanceEthBeforeRedistribution).to.equal(
+        ethers.utils.parseEther("1")
+      );
+      expect(balanceALCABeforeRedistribution).to.equal(
+        ethers.utils.parseEther("2")
+      );
+      const foundationETHBalanceBefore = await ethers.provider.getBalance(
+        fixture.foundation.address
+      );
+      const factoryALCABalanceBefore = await fixture.alca.balanceOf(
+        fixture.factory.address
+      );
+      // making sure that can use this function to skim funds
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "sendExpiredFundsToFactory"
+          )
+        )
+      ).to.be.fulfilled;
+      expect(
+        (
+          await ethers.provider.getBalance(fixture.redistribution.address)
+        ).toString()
+      ).to.be.equal("0");
+      expect(
+        (
+          await fixture.alca.balanceOf(fixture.redistribution.address)
+        ).toString()
+      ).to.be.equal("0");
+      expect(
+        await ethers.provider.getBalance(fixture.foundation.address)
+      ).to.be.equal(
+        foundationETHBalanceBefore.add(balanceEthBeforeRedistribution)
+      );
+      expect(await fixture.alca.balanceOf(fixture.factory.address)).to.be.equal(
+        factoryALCABalanceBefore.add(balanceALCABeforeRedistribution)
+      );
+    });
+    it("Should be able to burn the position with the factory after the expiration", async () => {
+      await fixture.factory.callAny(
+        fixture.alca.address,
+        0,
+        fixture.alca.interface.encodeFunctionData("approve", [
+          fixture.redistribution.address,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT,
+        ])
+      );
+      await fixture.factory.callAny(
+        fixture.redistribution.address,
+        0,
+        fixture.redistribution.interface.encodeFunctionData(
+          "createRedistributionStakedPosition"
+        )
+      );
+      await mineBlocks(1n);
+      // lets make it expire
+      await mineBlocks(
+        BigNumber.from(DEFAULT_WITHDRAWAL_BLOCK_WINDOW).toBigInt()
+      );
+      expect(
+        await fixture.publicStaking.balanceOf(fixture.factory.address)
+      ).to.be.equal(BigNumber.from(0));
+      const tokenID = await fixture.redistribution.tokenID();
+      const [reserve] = await fixture.publicStaking.getPosition(tokenID);
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "sendExpiredFundsToFactory"
+          )
+        )
+      ).to.be.fulfilled;
+      expect(
+        await fixture.publicStaking.balanceOf(fixture.factory.address)
+      ).to.be.equal(BigNumber.from(1));
+      const balanceALCABefore = await fixture.alca.balanceOf(
+        fixture.factory.address
+      );
+      await fixture.factory.callAny(
+        fixture.publicStaking.address,
+        0,
+        fixture.publicStaking.interface.encodeFunctionData("burn", [tokenID])
+      );
+      expect(await fixture.alca.balanceOf(fixture.factory.address)).to.be.equal(
+        balanceALCABefore.add(reserve)
+      );
+    });
   });
-
   // first tests
-
   describe("First round of tests", async () => {
     let fixture: FixtureWithRedistribution;
     beforeEach(async () => {
@@ -1014,7 +1210,6 @@ describe("CT redistribution", async () => {
       ).to.be.rejectedWith("ERC721: invalid token ID");
     });
   });
-
   describe("Withdraw tests", async () => {
     let fixture: FixtureWithRedistribution;
     beforeEach(async () => {
