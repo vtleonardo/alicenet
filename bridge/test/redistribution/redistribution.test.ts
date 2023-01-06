@@ -423,11 +423,6 @@ describe("CT redistribution", async () => {
           )
         )
       ).to.be.fulfilled;
-      const tokenID = await fixture.redistribution.tokenID();
-      expect(tokenID.toString()).to.be.not.equal("0");
-      expect(await fixture.publicStaking.ownerOf(tokenID)).to.be.equal(
-        fixture.redistribution.address
-      );
     });
 
     it("Cannot be called after expiration", async () => {
@@ -471,6 +466,41 @@ describe("CT redistribution", async () => {
           )
         )
       ).to.be.revertedWith("ERC20: insufficient allowance");
+    });
+
+    it("Should create a position if all the conditions are met", async () => {
+      await expect(
+        fixture.factory.callAny(
+          fixture.alca.address,
+          0,
+          fixture.alca.interface.encodeFunctionData("approve", [
+            fixture.redistribution.address,
+            DEFAULT_MAX_DISTRIBUTION_AMOUNT,
+          ])
+        )
+      ).to.be.fulfilled;
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "createRedistributionStakedPosition"
+          )
+        )
+      ).to.be.fulfilled;
+
+      // check tokenID
+      const tokenID = await fixture.redistribution.tokenID();
+      expect(tokenID.toString()).to.be.not.equal("0");
+      expect(await fixture.publicStaking.ownerOf(tokenID)).to.be.equal(
+        fixture.redistribution.address
+      );
+
+      // position matches the maxRedistributionAmount
+      const position = await fixture.publicStaking.getPosition(tokenID);
+      expect(position.shares.toString()).to.be.equal(
+        DEFAULT_MAX_DISTRIBUTION_AMOUNT.toString()
+      );
     });
   });
 
