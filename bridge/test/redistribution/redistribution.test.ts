@@ -764,6 +764,205 @@ describe("CT redistribution", async () => {
     });
   });
 
+  /**
+   * SendExpiredFundsToFactory testing
+   */
+
+  describe("SendExpiredFundsToFactory testing", async () => {
+    let fixture: FixtureWithRedistribution;
+    beforeEach(async () => {
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const baseFixture = await getFixture();
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(1, 3)
+          .map((a) => a.address);
+        const accountAmounts = distributionAccounts.map(() =>
+          ethers.utils.parseEther(`500000`)
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts,
+          accountAmounts,
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      fixture = await loadFixture(deployFunc);
+    });
+
+    it("Should not allow call from non-factory address", async () => {
+      await expect(
+        fixture.redistribution.sendExpiredFundsToFactory()
+      ).to.be.revertedWithCustomError(fixture.redistribution, "OnlyFactory");
+    });
+
+    it("Should allow call from factory address", async () => {
+      // lets make it expire
+      await mineBlocks(
+        BigNumber.from(DEFAULT_WITHDRAWAL_BLOCK_WINDOW).toBigInt()
+      );
+
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "sendExpiredFundsToFactory"
+          )
+        )
+      ).to.be.fulfilled;
+    });
+
+    it("Should not allow call when not expired", async () => {
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "sendExpiredFundsToFactory"
+          )
+        )
+      ).to.be.revertedWithCustomError(
+        fixture.redistribution,
+        "WithdrawalWindowNotExpiredYet"
+      );
+    });
+
+    it("Should emit TokenAlreadyTransferred event if contract is not the owner of the token", async () => {
+      // lets make it expire
+      await mineBlocks(
+        BigNumber.from(DEFAULT_WITHDRAWAL_BLOCK_WINDOW).toBigInt()
+      );
+
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "sendExpiredFundsToFactory"
+          )
+        )
+      ).to.emit(fixture.redistribution, "TokenAlreadyTransferred");
+    });
+
+    it("Should transfer all ALCA and ETH funds to factory", async () => {
+      // lets make it expire
+      await mineBlocks(
+        BigNumber.from(DEFAULT_WITHDRAWAL_BLOCK_WINDOW).toBigInt()
+      );
+
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "sendExpiredFundsToFactory"
+          )
+        )
+      ).to.be.fulfilled;
+
+      expect(
+        (
+          await fixture.alca.balanceOf(fixture.redistribution.address)
+        ).toString()
+      ).to.be.equal("0");
+      expect(
+        (
+          await ethers.provider.getBalance(fixture.redistribution.address)
+        ).toString()
+      ).to.be.equal("0");
+    });
+
+    it("Should transfer all ALCA and ETH funds to factory 2", async () => {
+      await expect(
+        fixture.factory.callAny(
+          fixture.alca.address,
+          0,
+          fixture.alca.interface.encodeFunctionData("approve", [
+            fixture.redistribution.address,
+            DEFAULT_MAX_DISTRIBUTION_AMOUNT,
+          ])
+        )
+      ).to.be.fulfilled;
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "createRedistributionStakedPosition"
+          )
+        )
+      ).to.be.fulfilled;
+
+      // transfer ALCA
+      const tokenAmount = ethers.utils.parseEther("100");
+      await fixture.factory.callAny(
+        fixture.alca.address,
+        0,
+        fixture.alca.interface.encodeFunctionData("approve", [
+          fixture.publicStaking.address,
+          tokenAmount,
+        ])
+      );
+      await fixture.factory.callAny(
+        fixture.publicStaking.address,
+        0,
+        fixture.publicStaking.interface.encodeFunctionData("depositToken", [
+          42,
+          tokenAmount,
+        ])
+      );
+
+      // transfer ETH
+      const ethAmount = ethers.utils.parseEther("10").toBigInt();
+      await fixture.publicStaking.depositEth(42, { value: ethAmount });
+
+      const factoryALCABalanceBefore = await fixture.alca.balanceOf(
+        fixture.factory.address
+      );
+      const foundationETHBalanceBefore = await ethers.provider.getBalance(
+        fixture.foundation.address
+      );
+
+      // lets make it expire
+      await mineBlocks(
+        BigNumber.from(DEFAULT_WITHDRAWAL_BLOCK_WINDOW).toBigInt()
+      );
+
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "sendExpiredFundsToFactory"
+          )
+        )
+      ).to.be.fulfilled;
+
+      expect(
+        (await fixture.alca.balanceOf(fixture.factory.address)).toString()
+      ).to.be.equal(factoryALCABalanceBefore.toString());
+      expect(
+        (
+          await ethers.provider.getBalance(fixture.foundation.address)
+        ).toString()
+      ).to.be.equal(foundationETHBalanceBefore.toString());
+
+      expect(
+        (
+          await fixture.alca.balanceOf(fixture.redistribution.address)
+        ).toString()
+      ).to.be.equal("0");
+      expect(
+        (
+          await ethers.provider.getBalance(fixture.redistribution.address)
+        ).toString()
+      ).to.be.equal("0");
+    });
+  });
+
   // first tests
 
   describe("First round of tests", async () => {
