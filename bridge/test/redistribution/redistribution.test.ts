@@ -30,12 +30,12 @@ const DEFAULT_MAX_DISTRIBUTION_AMOUNT = ethers.utils.parseEther("10000000");
  * -Should be able to set a operator as factory (operator is public we can check with the getter)
  *
  * CreateRedistributionStakedPosition:
- * Should not allow call from address other than factory
- * Only factory can call
- * Cannot be called after expiration
- * Should fail if there was not alca approval from the factory
- * Should create a position if all the conditions are met, check tokenID and the position properties match the maxRedistributionAmount
- * Should not allow to create a position if it already exists
+ * -Should not allow call from address other than factory
+ * -Only factory can call
+ * -Cannot be called after expiration
+ * -Should fail if there was not alca approval from the factory
+ * -Should create a position if all the conditions are met, check tokenID and the position properties match the maxRedistributionAmount
+ * -Should not allow to create a position if it already exists
  *
  * registerAddressForDistribution
  * Should not allow call from address other than operator (not even factory)
@@ -390,13 +390,6 @@ describe("CT redistribution", async () => {
       fixture = await loadFixture(deployFunc);
     });
 
-    /**
-     *
-     *
-     * Should create a position if all the conditions are met, check tokenID and the position properties match the maxRedistributionAmount
-     * Should not allow to create a position if it already exists
-     */
-
     it("Should not allow call from address other than factory", async () => {
       await expect(
         fixture.redistribution.createRedistributionStakedPosition()
@@ -500,6 +493,41 @@ describe("CT redistribution", async () => {
       const position = await fixture.publicStaking.getPosition(tokenID);
       expect(position.shares.toString()).to.be.equal(
         DEFAULT_MAX_DISTRIBUTION_AMOUNT.toString()
+      );
+    });
+
+    it("Should not allow to create a position if it already exists", async () => {
+      await expect(
+        fixture.factory.callAny(
+          fixture.alca.address,
+          0,
+          fixture.alca.interface.encodeFunctionData("approve", [
+            fixture.redistribution.address,
+            DEFAULT_MAX_DISTRIBUTION_AMOUNT,
+          ])
+        )
+      ).to.be.fulfilled;
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "createRedistributionStakedPosition"
+          )
+        )
+      ).to.be.fulfilled;
+
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "createRedistributionStakedPosition"
+          )
+        )
+      ).to.be.revertedWithCustomError(
+        fixture.redistribution,
+        "DistributionTokenAlreadyCreated"
       );
     });
   });
