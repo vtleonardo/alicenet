@@ -532,6 +532,239 @@ describe("CT redistribution", async () => {
     });
   });
 
+  /**
+   * RegisterAddressForDistribution testing
+   */
+
+  describe("RegisterAddressForDistribution testing", async () => {
+    let fixture: FixtureWithRedistribution;
+    beforeEach(async () => {
+      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
+        const baseFixture = await getFixture();
+        const allAccounts = await ethers.getSigners();
+        const distributionAccounts = allAccounts
+          .slice(1, 3)
+          .map((a) => a.address);
+        const accountAmounts = distributionAccounts.map(() =>
+          ethers.utils.parseEther(`500000`)
+        );
+        return await deployRedistribution(
+          baseFixture,
+          allAccounts,
+          distributionAccounts,
+          accountAmounts,
+          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT
+        );
+      };
+      fixture = await loadFixture(deployFunc);
+
+      await expect(
+        fixture.factory.callAny(
+          fixture.alca.address,
+          0,
+          fixture.alca.interface.encodeFunctionData("approve", [
+            fixture.redistribution.address,
+            DEFAULT_MAX_DISTRIBUTION_AMOUNT,
+          ])
+        )
+      ).to.be.fulfilled;
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "createRedistributionStakedPosition"
+          )
+        )
+      ).to.be.fulfilled;
+    });
+
+    it("Should not allow call from address other than operator", async () => {
+      await expect(
+        fixture.redistribution.registerAddressForDistribution(
+          fixture.accounts[0].address,
+          100_000
+        )
+      ).to.be.revertedWithCustomError(fixture.redistribution, "NotOperator");
+    });
+
+    it("Should not allow call from factory", async () => {
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData(
+            "registerAddressForDistribution",
+            [fixture.accounts[0].address, 100_000]
+          )
+        )
+      ).to.be.revertedWithCustomError(fixture.redistribution, "NotOperator");
+    });
+
+    it("Only operator can call", async () => {
+      const operator = fixture.accounts[0];
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData("setOperator", [
+            operator.address,
+          ])
+        )
+      ).to.be.fulfilled;
+
+      await expect(
+        fixture.redistribution
+          .connect(operator)
+          .registerAddressForDistribution(fixture.accounts[3].address, 100_000)
+      ).to.be.fulfilled;
+    });
+
+    it("Cannot be called after expiration", async () => {
+      const operator = fixture.accounts[0];
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData("setOperator", [
+            operator.address,
+          ])
+        )
+      ).to.be.fulfilled;
+
+      // lets make it expire
+      await mineBlocks(
+        BigNumber.from(DEFAULT_WITHDRAWAL_BLOCK_WINDOW).toBigInt()
+      );
+
+      await expect(
+        fixture.redistribution
+          .connect(operator)
+          .registerAddressForDistribution(fixture.accounts[3].address, 100_000)
+      ).to.be.revertedWithCustomError(
+        fixture.redistribution,
+        "WithdrawalWindowExpired"
+      );
+    });
+
+    it("Should not allow to register an address that is already registered", async () => {
+      const operator = fixture.accounts[0];
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData("setOperator", [
+            operator.address,
+          ])
+        )
+      ).to.be.fulfilled;
+
+      await expect(
+        fixture.redistribution
+          .connect(operator)
+          .registerAddressForDistribution(fixture.accounts[3].address, 100_000)
+      ).to.be.fulfilled;
+
+      await expect(
+        fixture.redistribution
+          .connect(operator)
+          .registerAddressForDistribution(fixture.accounts[3].address, 100_000)
+      ).to.be.revertedWithCustomError(
+        fixture.redistribution,
+        "PositionAlreadyRegisteredOrTaken"
+      );
+    });
+
+    it("Should not allow registering amount 0", async () => {
+      const operator = fixture.accounts[0];
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData("setOperator", [
+            operator.address,
+          ])
+        )
+      ).to.be.fulfilled;
+
+      await expect(
+        fixture.redistribution
+          .connect(operator)
+          .registerAddressForDistribution(fixture.accounts[3].address, 0)
+      ).to.be.revertedWithCustomError(
+        fixture.redistribution,
+        "ZeroAmountNotAllowed"
+      );
+    });
+
+    it("Should not allow registering more than available funds", async () => {
+      const operator = fixture.accounts[0];
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData("setOperator", [
+            operator.address,
+          ])
+        )
+      ).to.be.fulfilled;
+
+      await expect(
+        fixture.redistribution
+          .connect(operator)
+          .registerAddressForDistribution(fixture.accounts[3].address, 100_000)
+      ).to.be.fulfilled;
+
+      await expect(
+        fixture.redistribution
+          .connect(operator)
+          .registerAddressForDistribution(
+            fixture.accounts[4].address,
+            DEFAULT_MAX_DISTRIBUTION_AMOUNT
+          )
+      ).to.be.revertedWithCustomError(
+        fixture.redistribution,
+        "InvalidDistributionAmount"
+      );
+    });
+
+    it("Should not allow to register an address that already withdrew the position", async () => {
+      const operator = fixture.accounts[0];
+      await expect(
+        fixture.factory.callAny(
+          fixture.redistribution.address,
+          0,
+          fixture.redistribution.interface.encodeFunctionData("setOperator", [
+            operator.address,
+          ])
+        )
+      ).to.be.fulfilled;
+
+      await expect(
+        fixture.redistribution
+          .connect(operator)
+          .registerAddressForDistribution(fixture.accounts[3].address, 100_000)
+      ).to.be.fulfilled;
+
+      // withdraw
+      await expect(
+        fixture.redistribution
+          .connect(fixture.accounts[3])
+          .withdrawStakedPosition(fixture.accounts[3].address)
+      ).to.be.fulfilled;
+
+      await expect(
+        fixture.redistribution
+          .connect(operator)
+          .registerAddressForDistribution(fixture.accounts[3].address, 100_000)
+      ).to.be.revertedWithCustomError(
+        fixture.redistribution,
+        "PositionAlreadyRegisteredOrTaken"
+      );
+    });
+  });
+
   // first tests
 
   describe("First round of tests", async () => {
