@@ -50,6 +50,24 @@ interface FixtureWithRedistribution extends Fixture {
   accounts: SignerWithAddress[];
 }
 
+async function deployFunc(): Promise<FixtureWithRedistribution> {
+  const baseFixture = await getFixture();
+  const allAccounts = await ethers.getSigners();
+  const distributionAccounts = allAccounts.slice(0, 5).map((a) => a.address);
+  const accountAmounts = distributionAccounts.map(() =>
+    // ethers.utils.parseEther(`${i + 1}`).mul(500_000)
+    ethers.utils.parseEther(`500000`)
+  );
+  return await deployRedistribution(
+    baseFixture,
+    allAccounts,
+    distributionAccounts,
+    accountAmounts,
+    DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
+    DEFAULT_MAX_DISTRIBUTION_AMOUNT
+  );
+}
+
 async function deployRedistribution(
   fixture: Fixture,
   accounts: SignerWithAddress[],
@@ -368,25 +386,6 @@ describe("CT redistribution", async () => {
   describe("CreateRedistributionStakedPosition testing", async () => {
     let fixture: FixtureWithRedistribution;
     beforeEach(async () => {
-      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
-        const baseFixture = await getFixture();
-        const allAccounts = await ethers.getSigners();
-        const distributionAccounts = allAccounts
-          .slice(0, 5)
-          .map((a) => a.address);
-        const accountAmounts = distributionAccounts.map(() =>
-          // ethers.utils.parseEther(`${i + 1}`).mul(500_000)
-          ethers.utils.parseEther(`500000`)
-        );
-        return await deployRedistribution(
-          baseFixture,
-          allAccounts,
-          distributionAccounts,
-          accountAmounts,
-          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
-          DEFAULT_MAX_DISTRIBUTION_AMOUNT
-        );
-      };
       fixture = await loadFixture(deployFunc);
     });
 
@@ -479,25 +478,6 @@ describe("CT redistribution", async () => {
   describe("First round of tests", async () => {
     let fixture: FixtureWithRedistribution;
     beforeEach(async () => {
-      const deployFunc = async (): Promise<FixtureWithRedistribution> => {
-        const baseFixture = await getFixture();
-        const allAccounts = await ethers.getSigners();
-        const distributionAccounts = allAccounts
-          .slice(0, 5)
-          .map((a) => a.address);
-        const accountAmounts = distributionAccounts.map(() =>
-          // ethers.utils.parseEther(`${i + 1}`).mul(500_000)
-          ethers.utils.parseEther(`500000`)
-        );
-        return await deployRedistribution(
-          baseFixture,
-          allAccounts,
-          distributionAccounts,
-          accountAmounts,
-          DEFAULT_WITHDRAWAL_BLOCK_WINDOW,
-          DEFAULT_MAX_DISTRIBUTION_AMOUNT
-        );
-      };
       fixture = await loadFixture(deployFunc);
     });
 
@@ -534,6 +514,345 @@ describe("CT redistribution", async () => {
           fixture.accounts[6].address
         )
       ).to.be.deep.equal([BigNumber.from(100_000), false]);
+    });
+
+    it("should not be able to withdraw if total stake position was not created", async () => {
+      await expect(
+        fixture.redistribution
+          .connect(fixture.accounts[4])
+          .withdrawStakedPosition(fixture.accounts[5].address)
+      ).to.be.rejectedWith("ERC721: invalid token ID");
+    });
+  });
+
+  describe("Withdraw tests", async () => {
+    let fixture: FixtureWithRedistribution;
+    beforeEach(async () => {
+      fixture = await loadFixture(deployFunc);
+      await fixture.factory.callAny(
+        fixture.alca.address,
+        0,
+        fixture.alca.interface.encodeFunctionData("approve", [
+          fixture.redistribution.address,
+          DEFAULT_MAX_DISTRIBUTION_AMOUNT,
+        ])
+      );
+      await fixture.factory.callAny(
+        fixture.redistribution.address,
+        0,
+        fixture.redistribution.interface.encodeFunctionData(
+          "createRedistributionStakedPosition"
+        )
+      );
+      await mineBlocks(1n);
+    });
+
+    it("accounts registered in the constructor should be able to withdraw", async () => {
+      for (let i = 0; i < 5; i++) {
+        expect(
+          await fixture.redistribution.getRedistributionInfo(
+            fixture.accounts[i].address
+          )
+        ).to.be.deep.equal([ethers.utils.parseEther(`500000`), false]);
+        expect(
+          await fixture.publicStaking.balanceOf(fixture.accounts[i].address)
+        ).to.be.equal(BigNumber.from(0));
+        await fixture.redistribution
+          .connect(fixture.accounts[i])
+          .withdrawStakedPosition(fixture.accounts[i].address);
+        await mineBlocks(1n);
+        expect(
+          await fixture.publicStaking.balanceOf(fixture.accounts[i].address)
+        ).to.be.equal(BigNumber.from(1));
+        expect(
+          await fixture.redistribution.getRedistributionInfo(
+            fixture.accounts[i].address
+          )
+        ).to.be.deep.equal([BigNumber.from(0), true]);
+      }
+    });
+
+    it("accounts registered after constructor should be able to withdraw", async () => {
+      const operator = fixture.accounts[5];
+      await fixture.factory.callAny(
+        fixture.redistribution.address,
+        0,
+        fixture.redistribution.interface.encodeFunctionData("setOperator", [
+          operator.address,
+        ])
+      );
+
+      await fixture.redistribution
+        .connect(operator)
+        .registerAddressForDistribution(
+          fixture.accounts[6].address,
+          ethers.utils.parseEther("100000")
+        );
+
+      expect(
+        await fixture.redistribution.getRedistributionInfo(
+          fixture.accounts[6].address
+        )
+      ).to.be.deep.equal([ethers.utils.parseEther(`100000`), false]);
+      expect(
+        await fixture.publicStaking.balanceOf(fixture.accounts[6].address)
+      ).to.be.equal(BigNumber.from(0));
+      await expect(
+        fixture.redistribution
+          .connect(fixture.accounts[6])
+          .withdrawStakedPosition(fixture.accounts[6].address)
+      )
+        .to.emit(fixture.redistribution, "Withdrawn")
+        .withArgs(
+          fixture.accounts[6].address,
+          ethers.utils.parseEther(`100000`)
+        );
+      await mineBlocks(1n);
+      expect(
+        await fixture.publicStaking.balanceOf(fixture.accounts[6].address)
+      ).to.be.equal(BigNumber.from(1));
+      expect(
+        await fixture.redistribution.getRedistributionInfo(
+          fixture.accounts[6].address
+        )
+      ).to.be.deep.equal([BigNumber.from(0), true]);
+      // accounts registered in the contract should also be able to withdraw
+      await expect(
+        fixture.redistribution
+          .connect(fixture.accounts[0])
+          .withdrawStakedPosition(fixture.accounts[0].address)
+      )
+        .to.emit(fixture.redistribution, "Withdrawn")
+        .withArgs(
+          fixture.accounts[0].address,
+          ethers.utils.parseEther(`500000`)
+        );
+    });
+
+    it("should not allow withdrawing twice", async () => {
+      await fixture.redistribution
+        .connect(fixture.accounts[0])
+        .withdrawStakedPosition(fixture.accounts[0].address);
+      await mineBlocks(1n);
+      await expect(
+        fixture.redistribution
+          .connect(fixture.accounts[0])
+          .withdrawStakedPosition(fixture.accounts[0].address)
+      ).to.be.revertedWithCustomError(
+        fixture.redistribution,
+        "PositionAlreadyTakenOrInexistent"
+      );
+    });
+
+    it("should not allow withdrawing if not registered", async () => {
+      await expect(
+        fixture.redistribution
+          .connect(fixture.accounts[5])
+          .withdrawStakedPosition(fixture.accounts[5].address)
+      ).to.be.revertedWithCustomError(
+        fixture.redistribution,
+        "PositionAlreadyTakenOrInexistent"
+      );
+    });
+
+    it("should not allow withdrawing if system expired", async () => {
+      await mineBlocks((await fixture.redistribution.expireBlock()).toBigInt());
+      await expect(
+        fixture.redistribution.withdrawStakedPosition(
+          fixture.accounts[0].address
+        )
+      ).to.be.revertedWithCustomError(
+        fixture.redistribution,
+        "WithdrawalWindowExpired"
+      );
+    });
+
+    it("should withdraw with eth public staking yields going to foundation", async () => {
+      // since there's only 1 position in the system, all profit should go to it
+      const ethAmount = ethers.utils.parseEther("10").toBigInt();
+      await fixture.publicStaking.depositEth(42, { value: ethAmount });
+      expect(
+        await ethers.provider.getBalance(fixture.foundation.address)
+      ).to.be.equal(BigNumber.from(0));
+      const balanceBefore = await ethers.provider.getBalance(
+        fixture.accounts[0].address
+      );
+      const rcpt = await (
+        await fixture.redistribution
+          .connect(fixture.accounts[0])
+          .withdrawStakedPosition(fixture.accounts[0].address)
+      ).wait();
+      // balance of the account should be the same as before, but with the gas used
+      expect(
+        await ethers.provider.getBalance(fixture.accounts[0].address)
+      ).to.be.equal(
+        balanceBefore.sub(rcpt.gasUsed.mul(rcpt.effectiveGasPrice))
+      );
+      await mineBlocks(1n);
+      // all eth profit should be forward to the foundation
+      expect(
+        await ethers.provider.getBalance(fixture.foundation.address)
+      ).to.be.equal(ethers.utils.parseEther("10"));
+    });
+
+    it("should withdraw with alca public staking yields being re-staked", async () => {
+      const tokenAmount = ethers.utils.parseEther("100");
+      await fixture.factory.callAny(
+        fixture.alca.address,
+        0,
+        fixture.alca.interface.encodeFunctionData("approve", [
+          fixture.publicStaking.address,
+          tokenAmount,
+        ])
+      );
+      await fixture.factory.callAny(
+        fixture.publicStaking.address,
+        0,
+        fixture.publicStaking.interface.encodeFunctionData("depositToken", [
+          42,
+          tokenAmount,
+        ])
+      );
+      // since there's only 1 position in the system, all profit should go to it
+      const balanceBefore = await fixture.alca.balanceOf(
+        fixture.accounts[0].address
+      );
+      const maxAmountBefore =
+        await fixture.redistribution.maxRedistributionAmount();
+      const totalAllowancesBefore =
+        await fixture.redistribution.totalAllowances();
+      const [reserveBefore] = await fixture.publicStaking.getPosition(
+        await fixture.redistribution.tokenID()
+      );
+      await fixture.redistribution
+        .connect(fixture.accounts[0])
+        .withdrawStakedPosition(fixture.accounts[0].address);
+      // balance of the account should be the same as before, but with the gas used
+      expect(
+        await fixture.alca.balanceOf(fixture.accounts[0].address)
+      ).to.be.equal(balanceBefore);
+      await mineBlocks(1n);
+      // all eth profit should be forward to the foundation
+      const [reserveAfter] = await fixture.publicStaking.getPosition(
+        await fixture.redistribution.tokenID()
+      );
+      // the new position should be the same as the old one, but with the 100 alca (profit) more and less the
+      // amount sent to the user
+      expect(reserveAfter).to.be.equal(
+        reserveBefore.add(tokenAmount).sub(ethers.utils.parseEther("500000"))
+      );
+      expect(
+        await fixture.redistribution.maxRedistributionAmount()
+      ).to.be.equal(maxAmountBefore);
+      expect(await fixture.redistribution.totalAllowances()).to.be.equal(
+        totalAllowancesBefore
+      );
+    });
+
+    it("should not send eth to foundation in case there was no distribution", async () => {
+      await fixture.redistribution
+        .connect(fixture.accounts[0])
+        .withdrawStakedPosition(fixture.accounts[0].address);
+      await mineBlocks(1n);
+      // all eth profit should be forward to the foundation
+      expect(
+        await ethers.provider.getBalance(fixture.foundation.address)
+      ).to.be.equal(BigNumber.from(0));
+    });
+
+    it("should not re-stake if all reserved position were withdrawn and there was not alca yield", async () => {
+      const operator = fixture.accounts[5];
+      await fixture.factory.callAny(
+        fixture.redistribution.address,
+        0,
+        fixture.redistribution.interface.encodeFunctionData("setOperator", [
+          operator.address,
+        ])
+      );
+
+      await fixture.redistribution
+        .connect(operator)
+        .registerAddressForDistribution(
+          fixture.accounts[6].address,
+          await fixture.redistribution.getDistributionLeft()
+        );
+
+      for (let i = 0; i < 5; i++) {
+        const tokenBefore = await fixture.redistribution.tokenID();
+        await fixture.redistribution
+          .connect(fixture.accounts[i])
+          .withdrawStakedPosition(fixture.accounts[i].address);
+        await mineBlocks(1n);
+        expect(await fixture.redistribution.tokenID()).to.be.not.equal(
+          tokenBefore
+        );
+      }
+      const tokenBefore = await fixture.redistribution.tokenID();
+      await fixture.redistribution
+        .connect(fixture.accounts[6])
+        .withdrawStakedPosition(fixture.accounts[6].address);
+      // since all alca was withdrawn, no new position should be created to the redistribution
+      // contract
+      expect(await fixture.redistribution.tokenID()).to.be.equal(tokenBefore);
+    });
+
+    it("should re-stake if all reserved position were withdrawn and there was alca yield", async () => {
+      const tokenAmount = ethers.utils.parseEther("100");
+      await fixture.factory.callAny(
+        fixture.alca.address,
+        0,
+        fixture.alca.interface.encodeFunctionData("approve", [
+          fixture.publicStaking.address,
+          tokenAmount,
+        ])
+      );
+      await fixture.factory.callAny(
+        fixture.publicStaking.address,
+        0,
+        fixture.publicStaking.interface.encodeFunctionData("depositToken", [
+          42,
+          tokenAmount,
+        ])
+      );
+      const operator = fixture.accounts[5];
+      await fixture.factory.callAny(
+        fixture.redistribution.address,
+        0,
+        fixture.redistribution.interface.encodeFunctionData("setOperator", [
+          operator.address,
+        ])
+      );
+
+      await fixture.redistribution
+        .connect(operator)
+        .registerAddressForDistribution(
+          fixture.accounts[6].address,
+          await fixture.redistribution.getDistributionLeft()
+        );
+
+      for (let i = 0; i < 5; i++) {
+        const tokenBefore = await fixture.redistribution.tokenID();
+        await fixture.redistribution
+          .connect(fixture.accounts[i])
+          .withdrawStakedPosition(fixture.accounts[i].address);
+        await mineBlocks(1n);
+        expect(await fixture.redistribution.tokenID()).to.be.not.equal(
+          tokenBefore
+        );
+      }
+      const tokenBefore = await fixture.redistribution.tokenID();
+      await fixture.redistribution
+        .connect(fixture.accounts[6])
+        .withdrawStakedPosition(fixture.accounts[6].address);
+      // since all alca was withdrawn, no new position should be created to the redistribution
+      // contract
+      expect(await fixture.redistribution.tokenID()).to.be.not.equal(
+        tokenBefore
+      );
+      const [reserve] = await fixture.publicStaking.getPosition(
+        await fixture.redistribution.tokenID()
+      );
+      expect(reserve).to.be.equal(tokenAmount);
     });
   });
 });

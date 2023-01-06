@@ -35,10 +35,9 @@ contract Redistribution is
     error PositionAlreadyRegisteredOrTaken();
     error InvalidDistributionAmount(uint256 amount, uint256 maxAllowed);
     error NotEnoughFundsToRedistribute(uint256 withdrawAmount, uint256 currentAmount);
-    error PositionAlreadyTaken();
+    error PositionAlreadyTakenOrInexistent();
 
-    /// The amount of blocks that the withdraw position will be locked against burning. This is
-    /// approximately 6 months.
+    /// The amount of blocks that the withdraw position will be locked against burning.
     uint256 public constant MAX_MINT_LOCK = 1051200;
     /// The total amount of ALCA that can be redistributed to accounts via this contract.
     uint256 public immutable maxRedistributionAmount;
@@ -171,7 +170,7 @@ contract Redistribution is
     function withdrawStakedPosition(address to) public notExpired {
         accountInfo memory account = _accounts[msg.sender];
         if (account.balance == 0 || account.isPositionTaken) {
-            revert PositionAlreadyTaken();
+            revert PositionAlreadyTakenOrInexistent();
         }
         _accounts[msg.sender] = accountInfo(0, true);
         IStakingNFT staking = IStakingNFT(_publicStakingAddress());
